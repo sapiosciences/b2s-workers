@@ -22,6 +22,15 @@ public class C_FractionModel extends AbstractRecordModelWrapper {
 	public static final String DATA_TYPE_NAME = "C_Fraction";
 
 	/**
+	 * <b>Data Field Name</b>: C_CriticalReagentSampl<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___CRITICAL_REAGENT_SAMPL = "C_CriticalReagentSampl";
+
+	/**
 	 * <b>Data Field Name</b>: C_FinalFractionmL<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Final Fraction (mL)<br/>
@@ -122,6 +131,36 @@ public class C_FractionModel extends AbstractRecordModelWrapper {
 
 	protected C_FractionModel(RecordModel backingModel) {
 		super(backingModel);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___CRITICAL_REAGENT_SAMPL} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_CriticalReagentSampl<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_CriticalReagentSampl" field
+	 */
+	public String getC_CriticalReagentSampl() {
+		return getField(C___CRITICAL_REAGENT_SAMPL);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___CRITICAL_REAGENT_SAMPL} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_CriticalReagentSampl<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_CriticalReagentSampl" field
+	 */
+	public void setC_CriticalReagentSampl(String value) {
+		setField(C___CRITICAL_REAGENT_SAMPL, value);
 	}
 	
 	/**

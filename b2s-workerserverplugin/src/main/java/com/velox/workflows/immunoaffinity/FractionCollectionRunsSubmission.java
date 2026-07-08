@@ -86,6 +86,10 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
         List<ELNExperimentDetailModel> rows =
                 instMan.addExistingRecordsOfType(rowRecords, ELNExperimentDetailModel.class);
 
+        displayMessage("Fraction Collection Runs — row values",
+                buildFractionFieldDebugMessage(rows),
+                MessageDisplayType.OK_DIALOG);
+
         SampleModel criticalReagentSample = loadCriticalReagentSample(experiment);
         if (criticalReagentSample == null) {
             displayMessage("Warning",
@@ -146,9 +150,10 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
                 C_FractionModel extension = instMan.addNewRecord(C_FractionModel.class);
                 extension.setC_RunNumber(runNumber);
                 extension.setC_Step(step);
-                extension.setC_InitialFractionmL(row.getInitialFractionmL());
-                extension.setC_FinalFractionmL(row.getFinalFractionmL());
+                extension.setC_InitialFractionmL(row.getField("PoolFractions"));
+                extension.setC_FinalFractionmL(row.getField("VolumemL"));
                 extension.setC_SelectedForIntermedi(isSelected);
+                extension.setC_CriticalReagentSampl(criticalReagentSample.getSampleId());
                 extension.add(Parent.ref(fractionBaseSample));
 
                 // Lineage to the source reagent lot; criticalReagentSample itself is never mutated beyond
@@ -158,9 +163,12 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
                 // Re-submission of a row already backed by a Fraction sample: refresh volumes/selection on
                 // its existing C_Fraction extension instead of creating a second Sample+C_Fraction pair.
                 C_FractionModel extension = extensionByBaseSample.get(fractionBaseSample);
-                extension.setC_InitialFractionmL(row.getInitialFractionmL());
-                extension.setC_FinalFractionmL(row.getFinalFractionmL());
+                extension.setC_InitialFractionmL(row.getField("PoolFractions"));
+                extension.setC_FinalFractionmL(row.getField("VolumemL"));
                 extension.setC_SelectedForIntermedi(isSelected);
+                // Doesn't change across resubmissions (a Fraction's parent is fixed at creation), but set
+                // defensively for symmetry with the create branch.
+                extension.setC_CriticalReagentSampl(criticalReagentSample.getSampleId());
             }
 
             if (isSelected && !alreadyInPoolingEntry.contains(fractionBaseSample.getRecordId())) {
@@ -197,6 +205,28 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
 
     private static String fractionKey(Double runNumber, String step) {
         return runNumber + "|" + (step == null ? "" : step.trim().toLowerCase());
+    }
+
+    private static String buildFractionFieldDebugMessage(List<ELNExperimentDetailModel> rows) {
+        StringBuilder message = new StringBuilder();
+        for (int i = 0; i < rows.size(); i++) {
+            ELNExperimentDetailModel row = rows.get(i);
+            if (i > 0) {
+                message.append("\n\n");
+            }
+            message.append("Row ").append(i + 1)
+                    .append(" — Run ").append(formatDebugValue(row.getRunNumber2()))
+                    .append(", Step ").append(formatDebugValue(row.getStep2()))
+                    .append('\n')
+                    .append("  Initial Fraction (mL): ").append(formatDebugValue(row.getInitialFractionmL()))
+                    .append('\n')
+                    .append("  Final Fraction (mL): ").append(formatDebugValue(row.getFinalFractionmL()));
+        }
+        return message.toString();
+    }
+
+    private static String formatDebugValue(Object value) {
+        return value == null ? "(null)" : String.valueOf(value);
     }
 
     private SampleModel loadCriticalReagentSample(NotebookExperiment experiment) throws Throwable {

@@ -472,6 +472,24 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	public static final String C___CRITICALITY = "C_Criticality";
 
 	/**
+	 * <b>Data Field Name</b>: C_Fraction<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Fraction<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___FRACTION = "C_Fraction";
+
+	/**
+	 * <b>Data Field Name</b>: C_Fraction.C_CriticalReagentSampl<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___FRACTION_C___CRITICAL_REAGENT_SAMPL = "C_Fraction.C_CriticalReagentSampl";
+
+	/**
 	 * <b>Data Field Name</b>: C_Fraction.C_FinalFractionmL<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Final Fraction (mL)<br/>
@@ -4609,6 +4627,66 @@ A compound that has been rejected classification does not necessarily mean it is
 	 */
 	public void setC_Criticality(String value) {
 		setField(C___CRITICALITY, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___FRACTION} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Fraction<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Fraction<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_Fraction" field
+	 */
+	public Boolean getC_Fraction() {
+		return getField(C___FRACTION);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___FRACTION} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Fraction<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Fraction<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_Fraction" field
+	 */
+	public void setC_Fraction(Boolean value) {
+		setField(C___FRACTION, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___FRACTION_C___CRITICAL_REAGENT_SAMPL} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Fraction.C_CriticalReagentSampl<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_Fraction.C_CriticalReagentSampl" field
+	 */
+	public String getC_FractionC_CriticalReagentSampl() {
+		return getField(C___FRACTION_C___CRITICAL_REAGENT_SAMPL);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___FRACTION_C___CRITICAL_REAGENT_SAMPL} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Fraction.C_CriticalReagentSampl<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_Fraction.C_CriticalReagentSampl" field
+	 */
+	public void setC_FractionC_CriticalReagentSampl(String value) {
+		setField(C___FRACTION_C___CRITICAL_REAGENT_SAMPL, value);
 	}
 	
 	/**
