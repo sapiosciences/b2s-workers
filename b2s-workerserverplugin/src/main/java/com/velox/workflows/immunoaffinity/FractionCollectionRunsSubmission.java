@@ -86,10 +86,6 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
         List<ELNExperimentDetailModel> rows =
                 instMan.addExistingRecordsOfType(rowRecords, ELNExperimentDetailModel.class);
 
-        displayMessage("Fraction Collection Runs — row values",
-                buildFractionFieldDebugMessage(rows),
-                MessageDisplayType.OK_DIALOG);
-
         SampleModel criticalReagentSample = loadCriticalReagentSample(experiment);
         if (criticalReagentSample == null) {
             displayMessage("Warning",
@@ -187,17 +183,19 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
                 }
                 experiment.addRecordsToTableEntry(poolingEntry, fractionRecordsToAdd, user);
                 recMan.storeAndCommit("Add fractions selected for intermediate pooling to " + POOLING_ENTRY_NAME);
-
-                // Tell the client to refresh this entry specifically — it's a different entry than the one
-                // being submitted, so it won't otherwise pick up the newly-added records without a manual
-                // page refresh.
-                return new EnbPluginResult(true, poolingEntry);
             } else {
                 displayMessage("Warning",
                         "\"" + POOLING_ENTRY_NAME + "\" entry not found — created/updated Fraction sample(s) were "
                                 + "not added to it. They were still created and linked to the critical reagent sample.",
                         MessageDisplayType.TOASTER_WARNING);
+                return new PluginResult(true);
             }
+        }
+
+        // Tell the client to refresh the pooling entry — it's a different entry than the one being submitted,
+        // so it won't otherwise pick up newly-added or updated records without a manual page refresh.
+        if (poolingEntryLookup != null) {
+            return new EnbPluginResult(true, poolingEntryLookup);
         }
 
         return new PluginResult(true);
@@ -205,28 +203,6 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
 
     private static String fractionKey(Double runNumber, String step) {
         return runNumber + "|" + (step == null ? "" : step.trim().toLowerCase());
-    }
-
-    private static String buildFractionFieldDebugMessage(List<ELNExperimentDetailModel> rows) {
-        StringBuilder message = new StringBuilder();
-        for (int i = 0; i < rows.size(); i++) {
-            ELNExperimentDetailModel row = rows.get(i);
-            if (i > 0) {
-                message.append("\n\n");
-            }
-            message.append("Row ").append(i + 1)
-                    .append(" — Run ").append(formatDebugValue(row.getRunNumber2()))
-                    .append(", Step ").append(formatDebugValue(row.getStep2()))
-                    .append('\n')
-                    .append("  Initial Fraction (mL): ").append(formatDebugValue(row.getInitialFractionmL()))
-                    .append('\n')
-                    .append("  Final Fraction (mL): ").append(formatDebugValue(row.getFinalFractionmL()));
-        }
-        return message.toString();
-    }
-
-    private static String formatDebugValue(Object value) {
-        return value == null ? "(null)" : String.valueOf(value);
     }
 
     private SampleModel loadCriticalReagentSample(NotebookExperiment experiment) throws Throwable {
