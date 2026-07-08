@@ -1,0 +1,5 @@
+com/velox/recordmodels/SampleModel.class
+com/velox/recordmodels/C_FractionModel.class
+com/velox/workflows/immunoaffinity/FractionCollectionRunsSubmission.class
+com/velox/recordmodels/ELNSampleDetailModel.class
+com/velox/recordmodels/ELNExperimentDetailModel.class
