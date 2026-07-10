@@ -27,11 +27,13 @@ import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.pyparity.general.exceptions.MessageDisplayType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Ticket : B2S1-161 (replaces the native Sapio rule originally scoped for this step; see also B2S1-76, B2S1-110)
@@ -66,6 +68,14 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
      */
     public static final String POOLING_ENTRY_NAME = "Fractions Selected for Intermediate Pooling";
 
+    /** Fraction Collection Runs step order within a run (after sorting by Run Number). */
+    private static final List<String> FRACTION_COLLECTION_STEP_ORDER = List.of(
+            "1st PBS Wash",
+            "1st Water Wash",
+            "Acid/High Salt Elution",
+            "2nd PBS Wash",
+            "2nd Water Wash");
+
     @Override
     protected boolean shouldRun(NotebookExperimentEntryValidationContext ctx) throws Throwable {
         if (ctx.getNotebookExperiment() == null || ctx.getExperimentEntry() == null) {
@@ -84,7 +94,9 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
             return new PluginResult(true);
         }
         List<ELNExperimentDetailModel> rows =
-                instMan.addExistingRecordsOfType(rowRecords, ELNExperimentDetailModel.class);
+                instMan.addExistingRecordsOfType(rowRecords, ELNExperimentDetailModel.class).stream()
+                        .sorted(fractionCollectionRowOrder())
+                        .collect(Collectors.toList());
 
         SampleModel criticalReagentSample = loadCriticalReagentSample(experiment);
         if (criticalReagentSample == null) {
@@ -128,11 +140,13 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
             }
         }
 
+        String criticalReagentSampleId = criticalReagentSample.getSampleId();
         List<SampleModel> toAddToPoolingEntry = new ArrayList<>();
         for (ELNExperimentDetailModel row : rows) {
             Double runNumber = row.getRunNumber2();
             String step = row.getStep2();
             boolean isSelected = Boolean.TRUE.equals(row.getSelectedForIntermediatePool());
+            String fractionSampleName = buildFractionSampleName(criticalReagentSampleId, runNumber, step);
 
             SampleModel fractionBaseSample = existingBaseSampleByRunAndStep.get(fractionKey(runNumber, step));
             if (fractionBaseSample == null) {
@@ -149,8 +163,9 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
                 extension.setC_InitialFractionmL(row.getField("PoolFractions"));
                 extension.setC_FinalFractionmL(row.getField("VolumemL"));
                 extension.setC_SelectedForIntermedi(isSelected);
-                extension.setC_CriticalReagentSampl(criticalReagentSample.getSampleId());
+                extension.setC_CriticalReagentSampl(criticalReagentSampleId);
                 extension.add(Parent.ref(fractionBaseSample));
+                fractionBaseSample.setOtherSampleId(fractionSampleName);
 
                 // Lineage to the source reagent lot; criticalReagentSample itself is never mutated beyond
                 // gaining this child reference — it is read-only otherwise, as it must be shared by every row.
@@ -164,7 +179,8 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
                 extension.setC_SelectedForIntermedi(isSelected);
                 // Doesn't change across resubmissions (a Fraction's parent is fixed at creation), but set
                 // defensively for symmetry with the create branch.
-                extension.setC_CriticalReagentSampl(criticalReagentSample.getSampleId());
+                extension.setC_CriticalReagentSampl(criticalReagentSampleId);
+                fractionBaseSample.setOtherSampleId(fractionSampleName);
             }
 
             if (isSelected && !alreadyInPoolingEntry.contains(fractionBaseSample.getRecordId())) {
@@ -203,6 +219,44 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
 
     private static String fractionKey(Double runNumber, String step) {
         return runNumber + "|" + (step == null ? "" : step.trim().toLowerCase());
+    }
+
+    private static Comparator<ELNExperimentDetailModel> fractionCollectionRowOrder() {
+        return Comparator.comparing(
+                        ELNExperimentDetailModel::getRunNumber2,
+                        Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparingInt(row -> stepOrderIndex(row.getStep2()))
+                .thenComparing(
+                        ELNExperimentDetailModel::getStep2,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+    }
+
+    private static int stepOrderIndex(String step) {
+        if (step == null || step.isBlank()) {
+            return Integer.MAX_VALUE;
+        }
+        String normalized = step.trim();
+        for (int i = 0; i < FRACTION_COLLECTION_STEP_ORDER.size(); i++) {
+            if (FRACTION_COLLECTION_STEP_ORDER.get(i).equalsIgnoreCase(normalized)) {
+                return i;
+            }
+        }
+        return FRACTION_COLLECTION_STEP_ORDER.size();
+    }
+
+    /** Sample Name ({@link SampleModel#OTHER_SAMPLE_ID}): {@code {criticalReagentSampleId} R{runNumber} {step}}. */
+    private static String buildFractionSampleName(String criticalReagentSampleId, Double runNumber, String step) {
+        String id = criticalReagentSampleId == null ? "" : criticalReagentSampleId.trim();
+        String run = runNumber == null ? "" : formatRunNumber(runNumber);
+        String stepName = step == null ? "" : step.trim();
+        return id + " R" + run + " " + stepName;
+    }
+
+    private static String formatRunNumber(Double runNumber) {
+        if (runNumber == Math.rint(runNumber)) {
+            return String.valueOf(runNumber.longValue());
+        }
+        return String.valueOf(runNumber);
     }
 
     private SampleModel loadCriticalReagentSample(NotebookExperiment experiment) throws Throwable {
