@@ -166,6 +166,7 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
                 extension.setC_CriticalReagentSampl(criticalReagentSampleId);
                 extension.add(Parent.ref(fractionBaseSample));
                 fractionBaseSample.setOtherSampleId(fractionSampleName);
+                fractionBaseSample.setExemplarSampleType("Fraction");
 
                 // Lineage to the source reagent lot; criticalReagentSample itself is never mutated beyond
                 // gaining this child reference — it is read-only otherwise, as it must be shared by every row.
@@ -181,6 +182,8 @@ public class FractionCollectionRunsSubmission extends DefaultExperimentEntryVali
                 // defensively for symmetry with the create branch.
                 extension.setC_CriticalReagentSampl(criticalReagentSampleId);
                 fractionBaseSample.setOtherSampleId(fractionSampleName);
+                fractionBaseSample.setExemplarSampleType("Fraction");
+
             }
 
             if (isSelected && !alreadyInPoolingEntry.contains(fractionBaseSample.getRecordId())) {
