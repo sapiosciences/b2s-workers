@@ -10,6 +10,7 @@
  */
 package com.velox.workflows.immunoaffinity;
 
+import com.velox.RemoteIconUtil;
 import com.velox.api.datarecord.DataRecord;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
@@ -73,12 +74,9 @@ public class AddFractionCollectionRunsToolbar extends DefaultExperimentEntryTool
         return "";
     }
 
-    private static final String ICON_PATH =
-            "com/velox/workflows/immunoaffinity/resources/add-fractions.svg";
-
     @Override
     public byte[] getIcon() {
-        return getIcon(ICON_PATH);
+        return RemoteIconUtil.getRemoteIcon(this, "add-fractions.svg");
     }
 
     @Override
