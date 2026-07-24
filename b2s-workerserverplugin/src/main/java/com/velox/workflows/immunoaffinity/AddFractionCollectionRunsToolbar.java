@@ -7,6 +7,8 @@
 /**
  * Created: 2026-07-10
  * Agent type: Claude
+ * Modified: 2026-07-24
+ * Agent type: Composer
  */
 package com.velox.workflows.immunoaffinity;
 
@@ -25,7 +27,6 @@ import com.velox.recordmodels.ELNExperimentDetailModel;
 import com.velox.sapio.commons.exemplar.definition.form.FormBuilder;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultExperimentEntryToolbarPlugin;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -87,28 +88,28 @@ public class AddFractionCollectionRunsToolbar extends DefaultExperimentEntryTool
         int runsToAdd = promptForRunCount();
         double nextRunNumber = resolveNextRunNumber(experiment, tableEntry);
 
-        List<ELNExperimentDetailModel> newRows = new ArrayList<>(runsToAdd * FRACTION_COLLECTION_STEP_ORDER.size());
+        // ELNExperimentDetail rows are per-entry ELN data types and cannot be created via the global
+        // "ELNExperimentDetail" type. Create them using the entry's own data type name instead.
+        int rowCount = runsToAdd * FRACTION_COLLECTION_STEP_ORDER.size();
+        List<DataRecord> newRecords =
+                dataRecordManager.addDataRecords(tableEntry.getDataTypeName(), rowCount, user);
+        experiment.addRecordsToTableEntry(tableEntry, newRecords, user);
+
+        List<ELNExperimentDetailModel> newRows =
+                instMan.addExistingRecordsOfType(newRecords, ELNExperimentDetailModel.class);
+        int index = 0;
         for (int runOffset = 0; runOffset < runsToAdd; runOffset++) {
             double runNumber = nextRunNumber + runOffset;
             for (int stepIndex = 0; stepIndex < FRACTION_COLLECTION_STEP_ORDER.size(); stepIndex++) {
-                ELNExperimentDetailModel row = instMan.addNewRecord(ELNExperimentDetailModel.class);
+                ELNExperimentDetailModel row = newRows.get(index++);
                 row.setRunNumber2(runNumber);
                 row.setStep2(FRACTION_COLLECTION_STEP_ORDER.get(stepIndex));
                 row.setField(STEP_ORDER_FIELD, stepIndex + 1);
-                newRows.add(row);
             }
-        }
-
-        List<DataRecord> recordsToAdd = new ArrayList<>(newRows.size());
-        for (ELNExperimentDetailModel row : newRows) {
-            recordsToAdd.add(row.getDataRecord());
         }
 
         recMan.storeAndCommit("Add " + runsToAdd + " fraction collection run(s) ("
                 + newRows.size() + " rows)");
-        experiment.addRecordsToTableEntry(tableEntry, recordsToAdd, user);
-        recMan.storeAndCommit("Attach fraction collection run rows to "
-                + FractionCollectionRunsSubmission.FRACTION_COLLECTION_RUNS_ENTRY_NAME);
 
         return new EnbPluginResult(true, tableEntry);
     }
