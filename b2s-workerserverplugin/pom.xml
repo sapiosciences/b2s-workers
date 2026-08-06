@@ -30,6 +30,12 @@
             <artifactId>sapio-commons</artifactId>
             <type>applib</type>
         </dependency>
+        <dependency>
+            <groupId>com.velox.internalproducts</groupId>
+            <artifactId>instrumentation</artifactId>
+            <version>${sapiofoundations.version}</version>
+            <type>plugin</type>
+        </dependency>
         <!-- Add your dependencies here. Examples from accessionservicesharedlib:
 			If a dependency you have is an "applib", you must specify "type" as applib.
 			If a dependency you have is a "plugin", you must specify "type" as "plugin".
