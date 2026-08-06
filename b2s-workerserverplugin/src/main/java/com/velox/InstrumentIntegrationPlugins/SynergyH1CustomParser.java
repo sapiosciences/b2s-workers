@@ -7,9 +7,14 @@
 package com.velox.InstrumentIntegrationPlugins;
 
 import com.velox.api.datarecord.DataRecord;
+import com.velox.api.datarecord.IoError;
+import com.velox.api.datarecord.NotFound;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.util.ServerException;
+import com.velox.recordmodels.SampleModel;
 import com.velox.sapio.commons.exemplar.plugin.instrumentation.AbstractVeloxFileParser;
+import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
+import com.velox.sapio.commons.recordmodels.ngs.PlateModel;
 import com.velox.sapio.commons.utils.StreamingUtil;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.poi.ss.usermodel.Cell;
@@ -23,6 +28,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,8 +36,8 @@ import java.util.Map;
 
 /**
  * Parses Synergy H1 titer assessment Excel exports.
- * Reads Plate sheets only (skips Analysis), pulls Plate Number, and extracts the
- * Results plate diagram values (450, 630, and Delta) for each well.
+ * Reads Plate sheets only (skips Analysis), matches wells to child Samples on the
+ * corresponding Plate record, and returns 450 / 630 / Delta readings with SpecimenId.
  *
  * @author Connor Skevington
  * 8/5/2026
@@ -83,8 +89,9 @@ public class SynergyH1CustomParser extends AbstractVeloxFileParser {
                 }
 
                 String plateNumber = retrievePlateNumber(sheet, formatter);
+                Map<String, SampleModel> samplesByWell = retrieveSamplesByWellPosition(plateNumber);
                 List<Map<String, Object>> resultsRows = readResultsPlateData(sheet, formatter);
-                returnList.addAll(buildWellMaps(resultsRows, plateNumber));
+                returnList.addAll(buildWellMaps(resultsRows, samplesByWell));
             }
         } catch (UserRequestedCancelServerException e) {
             throw e;
@@ -114,6 +121,40 @@ public class SynergyH1CustomParser extends AbstractVeloxFileParser {
 
         displayWarning("Could not find Plate Number on sheet \"" + sheet.getSheetName() + "\".");
         throw new UserRequestedCancelServerException();
+    }
+
+    /**
+     * Queries the Plate by PlateId and maps its child Samples by well position (row+col).
+     */
+    private Map<String, SampleModel> retrieveSamplesByWellPosition(String plateNumber)
+            throws ServerException, RemoteException, IoError, NotFound {
+
+        List<DataRecord> plateRecords = dataRecordManager.queryDataRecords(
+                PlateModel.DATA_TYPE_NAME, PlateModel.PLATE_ID, Collections.singletonList(plateNumber), user);
+
+        if (plateRecords == null || plateRecords.isEmpty()) {
+            displayWarning("Could not find a Plate with Plate ID \"" + plateNumber + "\".");
+            throw new UserRequestedCancelServerException();
+        }
+
+        PlateModel plate = instMan.addExistingRecordOfType(plateRecords.get(0), PlateModel.class);
+        relationshipMan.loadChildren(plate, SampleModel.class);
+        List<SampleModel> samples = new ArrayList<>(plate.get(Children.ofType(SampleModel.class)));
+
+        if (samples.isEmpty()) {
+            displayWarning("Plate \"" + plateNumber + "\" has no child Samples to align with file results.");
+            throw new UserRequestedCancelServerException();
+        }
+
+        Map<String, SampleModel> samplesByWell = new HashMap<>();
+        for (SampleModel sample : samples) {
+            String wellKey = buildWellKey(sample.getRowPosition(), sample.getColPosition());
+            if (wellKey != null) {
+                samplesByWell.put(wellKey, sample);
+            }
+        }
+
+        return samplesByWell;
     }
 
     /**
@@ -199,7 +240,9 @@ public class SynergyH1CustomParser extends AbstractVeloxFileParser {
         return true;
     }
 
-    private List<Map<String, Object>> buildWellMaps(List<Map<String, Object>> resultsRows, String plateNumber) {
+    private List<Map<String, Object>> buildWellMaps(
+            List<Map<String, Object>> resultsRows, Map<String, SampleModel> samplesByWell) {
+
         List<Map<String, Object>> returnList = new ArrayList<>();
 
         for (int plateRowIndex = 0; plateRowIndex < PLATE_ROWS; plateRowIndex++) {
@@ -218,17 +261,26 @@ public class SynergyH1CustomParser extends AbstractVeloxFileParser {
             }
 
             for (String column : COLUMN_HEADERS) {
+                SampleModel sample = samplesByWell.get(buildWellKey(rowLetter, column));
+                if (sample == null) {
+                    continue;
+                }
+
+                String specimenId = sample.getSampleId();
+                if (specimenId == null || specimenId.isBlank()) {
+                    continue;
+                }
+
                 Object raw450 = reading450.get(column);
+                Object rawDelta = readingDelta.get(column);
                 boolean isOverflow = isOverflowValue(raw450);
 
                 Map<String, Object> map = new HashMap<>();
-                map.put("PlateNumber", plateNumber);
-                map.put("FileSpecifiedRow", rowLetter);
-                map.put("FileSpecifiedColumn", column);
+                map.put("Sample", specimenId);
                 map.put("wellId", retrieveWellId(rowLetter, column));
                 map.put("450", isOverflow ? "4" : raw450);
                 map.put("630", reading630.get(column));
-                map.put("Delta", readingDelta.get(column));
+                map.put("Delta", isBlankQuestionDelta(rawDelta) ? "" : rawDelta);
                 map.put("overflow", isOverflow ? "true" : "false");
                 returnList.add(map);
             }
@@ -237,12 +289,31 @@ public class SynergyH1CustomParser extends AbstractVeloxFileParser {
         return returnList;
     }
 
+    private String buildWellKey(String rowPosition, String colPosition) {
+        if (rowPosition == null || rowPosition.isBlank() || colPosition == null || colPosition.isBlank()) {
+            return null;
+        }
+        try {
+            int col = Integer.parseInt(colPosition.trim());
+            return rowPosition.trim().toUpperCase() + "-" + col;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private boolean isOverflowValue(Object value) {
         if (value == null) {
             return false;
         }
         String normalized = value.toString().trim();
         return "OVRFLW".equalsIgnoreCase(normalized) || "OVERFLOW".equalsIgnoreCase(normalized);
+    }
+
+    private boolean isBlankQuestionDelta(Object value) {
+        if (value == null) {
+            return true;
+        }
+        return "?????".equals(value.toString().trim());
     }
 
     private String retrieveWellId(String row, String column) {
