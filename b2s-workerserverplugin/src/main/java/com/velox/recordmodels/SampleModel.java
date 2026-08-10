@@ -364,6 +364,15 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	public static final String C___COLUMN_C___EXPIRED = "C_Column.C_Expired";
 
 	/**
+	 * <b>Data Field Name</b>: C_Column.C_Ligand<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Ligand<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___COLUMN_C___LIGAND = "C_Column.C_Ligand";
+
+	/**
 	 * <b>Data Field Name</b>: C_Column.C_LotNumber<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Lot Number<br/>
@@ -380,6 +389,15 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: The part number of this item.
 	 */
 	public static final String C___COLUMN_C___PART_NUMBER = "C_Column.C_PartNumber";
+
+	/**
+	 * <b>Data Field Name</b>: C_Column.C_Preparation<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Preparation<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___COLUMN_C___PREPARATION = "C_Column.C_Preparation";
 
 	/**
 	 * <b>Data Field Name</b>: C_Column.C_Pressure<br/>
@@ -472,6 +490,24 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	public static final String C___CRITICALITY = "C_Criticality";
 
 	/**
+	 * <b>Data Field Name</b>: C_FinalStorageBuffer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Storage Buffer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___FINAL_STORAGE_BUFFER = "C_FinalStorageBuffer";
+
+	/**
+	 * <b>Data Field Name</b>: C_FinalTotalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Total Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___FINAL_TOTAL_AMOUNT = "C_FinalTotalAmount";
+
+	/**
 	 * <b>Data Field Name</b>: C_Fraction<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Fraction<br/>
@@ -483,7 +519,7 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	/**
 	 * <b>Data Field Name</b>: C_Fraction.C_CriticalReagentSampl<br/>
 	 * <br/>
-	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <b>Display Name</b>: Critical Reagent Sample ID<br/>
 	 * <br/>
 	 * <b>Description</b>: No Description
 	 */
@@ -758,6 +794,24 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: No Description
 	 */
 	public static final String C___RETEST_DATE = "C_RetestDate";
+
+	/**
+	 * <b>Data Field Name</b>: C_Reviewer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Reviewer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___REVIEWER = "C_Reviewer";
+
+	/**
+	 * <b>Data Field Name</b>: C_RouteToPrepHPLC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Send to Preparative HPLC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___ROUTE_TO_PREP_HPLC = "C_RouteToPrepHPLC";
 
 	/**
 	 * <b>Data Field Name</b>: C_SampleMatrix<br/>
@@ -1558,6 +1612,15 @@ A compound that has been rejected classification does not necessarily mean it is
 	 * <b>Description</b>: Unit of measure for the Concentration.
 	 */
 	public static final String CONCENTRATION_UNITS = "ConcentrationUnits";
+
+	/**
+	 * <b>Data Field Name</b>: ConsumableItem.C_MolecularWeight<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Molecular Weight<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String CONSUMABLE_ITEM_C___MOLECULAR_WEIGHT = "ConsumableItem.C_MolecularWeight";
 
 	/**
 	 * <b>Data Field Name</b>: ConsumableItem.ColPosition<br/>
@@ -4360,6 +4423,36 @@ A compound that has been rejected classification does not necessarily mean it is
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #C___COLUMN_C___LIGAND} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Column.C_Ligand<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Ligand<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_Column.C_Ligand" field
+	 */
+	public String getC_ColumnC_Ligand() {
+		return getField(C___COLUMN_C___LIGAND);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___COLUMN_C___LIGAND} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Column.C_Ligand<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Ligand<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_Column.C_Ligand" field
+	 */
+	public void setC_ColumnC_Ligand(String value) {
+		setField(C___COLUMN_C___LIGAND, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #C___COLUMN_C___LOT_NUMBER} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: C_Column.C_LotNumber<br/>
@@ -4417,6 +4510,36 @@ A compound that has been rejected classification does not necessarily mean it is
 	 */
 	public void setC_ColumnC_PartNumber(String value) {
 		setField(C___COLUMN_C___PART_NUMBER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___COLUMN_C___PREPARATION} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Column.C_Preparation<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Preparation<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_Column.C_Preparation" field
+	 */
+	public String getC_ColumnC_Preparation() {
+		return getField(C___COLUMN_C___PREPARATION);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___COLUMN_C___PREPARATION} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Column.C_Preparation<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Preparation<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_Column.C_Preparation" field
+	 */
+	public void setC_ColumnC_Preparation(String value) {
+		setField(C___COLUMN_C___PREPARATION, value);
 	}
 	
 	/**
@@ -4630,6 +4753,66 @@ A compound that has been rejected classification does not necessarily mean it is
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #C___FINAL_STORAGE_BUFFER} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_FinalStorageBuffer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Storage Buffer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_FinalStorageBuffer" field
+	 */
+	public String getC_FinalStorageBuffer() {
+		return getField(C___FINAL_STORAGE_BUFFER);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___FINAL_STORAGE_BUFFER} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_FinalStorageBuffer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Storage Buffer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_FinalStorageBuffer" field
+	 */
+	public void setC_FinalStorageBuffer(String value) {
+		setField(C___FINAL_STORAGE_BUFFER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___FINAL_TOTAL_AMOUNT} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_FinalTotalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Total Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_FinalTotalAmount" field
+	 */
+	public Double getC_FinalTotalAmount() {
+		return getField(C___FINAL_TOTAL_AMOUNT);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___FINAL_TOTAL_AMOUNT} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_FinalTotalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Total Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_FinalTotalAmount" field
+	 */
+	public void setC_FinalTotalAmount(Double value) {
+		setField(C___FINAL_TOTAL_AMOUNT, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #C___FRACTION} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: C_Fraction<br/>
@@ -4664,7 +4847,7 @@ A compound that has been rejected classification does not necessarily mean it is
 	 * <br/>
 	 * <b>Data Field Name</b>: C_Fraction.C_CriticalReagentSampl<br/>
 	 * <br/>
-	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <b>Display Name</b>: Critical Reagent Sample ID<br/>
 	 * <br/>
 	 * <b>Description</b>: No Description
 	 * 
@@ -4679,7 +4862,7 @@ A compound that has been rejected classification does not necessarily mean it is
 	 * <br/>
 	 * <b>Data Field Name</b>: C_Fraction.C_CriticalReagentSampl<br/>
 	 * <br/>
-	 * <b>Display Name</b>: Critical Reagent Sample<br/>
+	 * <b>Display Name</b>: Critical Reagent Sample ID<br/>
 	 * <br/>
 	 * <b>Description</b>: No Description
 	 * 
@@ -5407,6 +5590,66 @@ A compound that has been rejected classification does not necessarily mean it is
 	 */
 	public void setC_RetestDate(Long value) {
 		setField(C___RETEST_DATE, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___REVIEWER} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Reviewer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Reviewer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_Reviewer" field
+	 */
+	public String getC_Reviewer() {
+		return getField(C___REVIEWER);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___REVIEWER} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Reviewer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Reviewer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_Reviewer" field
+	 */
+	public void setC_Reviewer(String value) {
+		setField(C___REVIEWER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___ROUTE_TO_PREP_HPLC} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_RouteToPrepHPLC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Send to Preparative HPLC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_RouteToPrepHPLC" field
+	 */
+	public Boolean getC_RouteToPrepHPLC() {
+		return getField(C___ROUTE_TO_PREP_HPLC);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___ROUTE_TO_PREP_HPLC} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_RouteToPrepHPLC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Send to Preparative HPLC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_RouteToPrepHPLC" field
+	 */
+	public void setC_RouteToPrepHPLC(Boolean value) {
+		setField(C___ROUTE_TO_PREP_HPLC, value);
 	}
 	
 	/**
@@ -7883,6 +8126,36 @@ A compound that has been rejected classification does not necessarily mean it is
 	 */
 	public void setConcentrationUnits(String value) {
 		setField(CONCENTRATION_UNITS, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #CONSUMABLE_ITEM_C___MOLECULAR_WEIGHT} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ConsumableItem.C_MolecularWeight<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Molecular Weight<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "ConsumableItem.C_MolecularWeight" field
+	 */
+	public Double getConsumableItemC_MolecularWeight() {
+		return getField(CONSUMABLE_ITEM_C___MOLECULAR_WEIGHT);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #CONSUMABLE_ITEM_C___MOLECULAR_WEIGHT} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ConsumableItem.C_MolecularWeight<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Molecular Weight<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "ConsumableItem.C_MolecularWeight" field
+	 */
+	public void setConsumableItemC_MolecularWeight(Double value) {
+		setField(CONSUMABLE_ITEM_C___MOLECULAR_WEIGHT, value);
 	}
 	
 	/**
