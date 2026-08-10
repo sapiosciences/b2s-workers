@@ -22,6 +22,33 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	public static final String DATA_TYPE_NAME = "ELNSampleDetail";
 
 	/**
+	 * <b>Data Field Name</b>: BiotinIncorporation<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Biotin Incorporation #<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String BIOTIN_INCORPORATION = "BiotinIncorporation";
+
+	/**
+	 * <b>Data Field Name</b>: BufferExchangeMethod<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Desalting Column<br/>
+	 * <br/>
+	 * <b>Description</b>: Checkbox to route to Dialysis or Prep HPLC.
+	 */
+	public static final String BUFFER_EXCHANGE_METHOD = "BufferExchangeMethod";
+
+	/**
+	 * <b>Data Field Name</b>: ChallengeRatio<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Challenge Ratio<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String CHALLENGE_RATIO = "ChallengeRatio";
+
+	/**
 	 * <b>Data Field Name</b>: Ci95Bounds<br/>
 	 * <br/>
 	 * <b>Display Name</b>: CI 95% Bounds<br/>
@@ -38,6 +65,15 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: Deprecated
 	 */
 	public static final String COL_POSITION = "ColPosition";
+
+	/**
+	 * <b>Data Field Name</b>: Concentration<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Concentration<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String CONCENTRATION = "Concentration";
 
 	/**
 	 * <b>Data Field Name</b>: ControlType<br/>
@@ -85,6 +121,15 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	public static final String DATE_CREATED = "DateCreated";
 
 	/**
+	 * <b>Data Field Name</b>: DesaltingColumn<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Desalting Column<br/>
+	 * <br/>
+	 * <b>Description</b>: Used for routing the sample to the Prep HPLC (SEC) template
+	 */
+	public static final String DESALTING_COLUMN = "DesaltingColumn";
+
+	/**
 	 * <b>Data Field Name</b>: DiluentToUse<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Diluent To Use<br/>
@@ -92,6 +137,15 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: The amount of diluent volume to use.
 	 */
 	public static final String DILUENT_TO_USE = "DiluentToUse";
+
+	/**
+	 * <b>Data Field Name</b>: DilutionFactor2<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Dilution Factor<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String DILUTION_FACTOR_2 = "DilutionFactor2";
 
 	/**
 	 * <b>Data Field Name</b>: EditableOtherSampleId<br/>
@@ -103,6 +157,24 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	public static final String EDITABLE_OTHER_SAMPLE_ID = "EditableOtherSampleId";
 
 	/**
+	 * <b>Data Field Name</b>: ExcludeFromTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Exclude From Titer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String EXCLUDE_FROM_TITER = "ExcludeFromTiter";
+
+	/**
+	 * <b>Data Field Name</b>: ExcludeforAnalyticalSEC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Exclude for Analytical SEC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String EXCLUDEFOR_ANALYTICAL_SEC = "ExcludeforAnalyticalSEC";
+
+	/**
 	 * <b>Data Field Name</b>: ExistingPlateRecordId<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Existing Plate Record ID<br/>
@@ -110,6 +182,60 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: The record ID of a plate already existing for this sample.
 	 */
 	public static final String EXISTING_PLATE_RECORD_ID = "ExistingPlateRecordId";
+
+	/**
+	 * <b>Data Field Name</b>: FinalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String FINAL_AMOUNT = "FinalAmount";
+
+	/**
+	 * <b>Data Field Name</b>: FinalConcentration<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Concentration<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String FINAL_CONCENTRATION = "FinalConcentration";
+
+	/**
+	 * <b>Data Field Name</b>: FinalStorageBuffer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Storage Buffer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String FINAL_STORAGE_BUFFER = "FinalStorageBuffer";
+
+	/**
+	 * <b>Data Field Name</b>: FinalTotalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Total Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String FINAL_TOTAL_AMOUNT = "FinalTotalAmount";
+
+	/**
+	 * <b>Data Field Name</b>: FinalVolume<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Volume<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String FINAL_VOLUME = "FinalVolume";
+
+	/**
+	 * <b>Data Field Name</b>: FlowCellLaneAssigment<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Flow Cell Lane Assigment<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String FLOW_CELL_LANE_ASSIGMENT = "FlowCellLaneAssigment";
 
 	/**
 	 * <b>Data Field Name</b>: Hit<br/>
@@ -166,6 +292,15 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	public static final String LOWER_CI_95 = "LowerCi95";
 
 	/**
+	 * <b>Data Field Name</b>: MainPeakArea<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Main Peak Area<br/>
+	 * <br/>
+	 * <b>Description</b>: Field to manually enter the Main Peak Area results for analytical HPLC (SEC).
+	 */
+	public static final String MAIN_PEAK_AREA = "MainPeakArea";
+
+	/**
 	 * <b>Data Field Name</b>: MultiplexInstructions<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Multiplex Instructions<br/>
@@ -211,6 +346,15 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	public static final String PLATE_ID = "PlateId";
 
 	/**
+	 * <b>Data Field Name</b>: Purity<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Purity %<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String PURITY = "Purity";
+
+	/**
 	 * <b>Data Field Name</b>: RecordId<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Record ID<br/>
@@ -218,6 +362,33 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: The system-wide unique ID of this data record
 	 */
 	public static final String RECORD_ID = "RecordId";
+
+	/**
+	 * <b>Data Field Name</b>: RoutetoDialysis<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Dialysis<br/>
+	 * <br/>
+	 * <b>Description</b>: Field to trigger routing to buffer exchange by dialysis.
+	 */
+	public static final String ROUTETO_DIALYSIS = "RoutetoDialysis";
+
+	/**
+	 * <b>Data Field Name</b>: RoutetoTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Titer?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String ROUTETO_TITER = "RoutetoTiter";
+
+	/**
+	 * <b>Data Field Name</b>: RouttoFinalPooling<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Final Pooling?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String ROUTTO_FINAL_POOLING = "RouttoFinalPooling";
 
 	/**
 	 * <b>Data Field Name</b>: RowPosition<br/>
@@ -272,6 +443,42 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: The type of sample being used.
 	 */
 	public static final String SAMPLE_TYPE = "SampleType";
+
+	/**
+	 * <b>Data Field Name</b>: SelectedForTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Selected For Titer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String SELECTED_FOR_TITER = "SelectedForTiter";
+
+	/**
+	 * <b>Data Field Name</b>: SelectedforSEC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Selected for SEC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String SELECTEDFOR_SEC = "SelectedforSEC";
+
+	/**
+	 * <b>Data Field Name</b>: SendtoPreparativeHPLC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Send to Preparative HPLC?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String SENDTO_PREPARATIVE_HPLC = "SendtoPreparativeHPLC";
+
+	/**
+	 * <b>Data Field Name</b>: SkipBufferExchange<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Skip Buffer Exchange?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String SKIP_BUFFER_EXCHANGE = "SkipBufferExchange";
 
 	/**
 	 * <b>Data Field Name</b>: SourceConcentration<br/>
@@ -427,6 +634,51 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	public static final String TARGET_VOLUME_REQUIRED = "TargetVolumeRequired";
 
 	/**
+	 * <b>Data Field Name</b>: TempC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Temp (C)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String TEMP_C = "TempC";
+
+	/**
+	 * <b>Data Field Name</b>: Timemin<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Time (min)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String TIMEMIN = "Timemin";
+
+	/**
+	 * <b>Data Field Name</b>: TotalMassFormula<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Mass (mg)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String TOTAL_MASS_FORMULA = "TotalMassFormula";
+
+	/**
+	 * <b>Data Field Name</b>: TotalMassmg2<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Mass (mg)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String TOTAL_MASSMG_2 = "TotalMassmg2";
+
+	/**
+	 * <b>Data Field Name</b>: TotalVolume<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Volume<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String TOTAL_VOLUME = "TotalVolume";
+
+	/**
 	 * <b>Data Field Name</b>: UpperCi95<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Upper CI 95%<br/>
@@ -455,6 +707,96 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 
 	protected ELNSampleDetailModel(RecordModel backingModel) {
 		super(backingModel);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #BIOTIN_INCORPORATION} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: BiotinIncorporation<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Biotin Incorporation #<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "BiotinIncorporation" field
+	 */
+	public Double getBiotinIncorporation() {
+		return getField(BIOTIN_INCORPORATION);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #BIOTIN_INCORPORATION} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: BiotinIncorporation<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Biotin Incorporation #<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "BiotinIncorporation" field
+	 */
+	public void setBiotinIncorporation(Double value) {
+		setField(BIOTIN_INCORPORATION, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #BUFFER_EXCHANGE_METHOD} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: BufferExchangeMethod<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Desalting Column<br/>
+	 * <br/>
+	 * <b>Description</b>: Checkbox to route to Dialysis or Prep HPLC.
+	 * 
+	 * @return the value stored on the "BufferExchangeMethod" field
+	 */
+	public Boolean getBufferExchangeMethod() {
+		return getField(BUFFER_EXCHANGE_METHOD);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #BUFFER_EXCHANGE_METHOD} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: BufferExchangeMethod<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Desalting Column<br/>
+	 * <br/>
+	 * <b>Description</b>: Checkbox to route to Dialysis or Prep HPLC.
+	 * 
+	 * @param value The value to set on the "BufferExchangeMethod" field
+	 */
+	public void setBufferExchangeMethod(Boolean value) {
+		setField(BUFFER_EXCHANGE_METHOD, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #CHALLENGE_RATIO} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ChallengeRatio<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Challenge Ratio<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "ChallengeRatio" field
+	 */
+	public Double getChallengeRatio() {
+		return getField(CHALLENGE_RATIO);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #CHALLENGE_RATIO} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ChallengeRatio<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Challenge Ratio<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "ChallengeRatio" field
+	 */
+	public void setChallengeRatio(Double value) {
+		setField(CHALLENGE_RATIO, value);
 	}
 	
 	/**
@@ -515,6 +857,36 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 */
 	public void setColPosition(String value) {
 		setField(COL_POSITION, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #CONCENTRATION} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: Concentration<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Concentration<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "Concentration" field
+	 */
+	public Double getConcentration() {
+		return getField(CONCENTRATION);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #CONCENTRATION} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: Concentration<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Concentration<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "Concentration" field
+	 */
+	public void setConcentration(Double value) {
+		setField(CONCENTRATION, value);
 	}
 	
 	/**
@@ -623,6 +995,36 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #DESALTING_COLUMN} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: DesaltingColumn<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Desalting Column<br/>
+	 * <br/>
+	 * <b>Description</b>: Used for routing the sample to the Prep HPLC (SEC) template
+	 * 
+	 * @return the value stored on the "DesaltingColumn" field
+	 */
+	public Boolean getDesaltingColumn() {
+		return getField(DESALTING_COLUMN);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #DESALTING_COLUMN} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: DesaltingColumn<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Desalting Column<br/>
+	 * <br/>
+	 * <b>Description</b>: Used for routing the sample to the Prep HPLC (SEC) template
+	 * 
+	 * @param value The value to set on the "DesaltingColumn" field
+	 */
+	public void setDesaltingColumn(Boolean value) {
+		setField(DESALTING_COLUMN, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #DILUENT_TO_USE} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: DiluentToUse<br/>
@@ -650,6 +1052,36 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 */
 	public void setDiluentToUse(Double value) {
 		setField(DILUENT_TO_USE, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #DILUTION_FACTOR_2} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: DilutionFactor2<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Dilution Factor<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "DilutionFactor2" field
+	 */
+	public Double getDilutionFactor2() {
+		return getField(DILUTION_FACTOR_2);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #DILUTION_FACTOR_2} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: DilutionFactor2<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Dilution Factor<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "DilutionFactor2" field
+	 */
+	public void setDilutionFactor2(Double value) {
+		setField(DILUTION_FACTOR_2, value);
 	}
 	
 	/**
@@ -683,6 +1115,66 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #EXCLUDE_FROM_TITER} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ExcludeFromTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Exclude From Titer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "ExcludeFromTiter" field
+	 */
+	public Boolean getExcludeFromTiter() {
+		return getField(EXCLUDE_FROM_TITER);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #EXCLUDE_FROM_TITER} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ExcludeFromTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Exclude From Titer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "ExcludeFromTiter" field
+	 */
+	public void setExcludeFromTiter(Boolean value) {
+		setField(EXCLUDE_FROM_TITER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #EXCLUDEFOR_ANALYTICAL_SEC} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ExcludeforAnalyticalSEC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Exclude for Analytical SEC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "ExcludeforAnalyticalSEC" field
+	 */
+	public Boolean getExcludeforAnalyticalSEC() {
+		return getField(EXCLUDEFOR_ANALYTICAL_SEC);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #EXCLUDEFOR_ANALYTICAL_SEC} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: ExcludeforAnalyticalSEC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Exclude for Analytical SEC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "ExcludeforAnalyticalSEC" field
+	 */
+	public void setExcludeforAnalyticalSEC(Boolean value) {
+		setField(EXCLUDEFOR_ANALYTICAL_SEC, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #EXISTING_PLATE_RECORD_ID} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: ExistingPlateRecordId<br/>
@@ -710,6 +1202,186 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 */
 	public void setExistingPlateRecordId(Long value) {
 		setField(EXISTING_PLATE_RECORD_ID, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #FINAL_AMOUNT} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "FinalAmount" field
+	 */
+	public Double getFinalAmount() {
+		return getField(FINAL_AMOUNT);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #FINAL_AMOUNT} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "FinalAmount" field
+	 */
+	public void setFinalAmount(Double value) {
+		setField(FINAL_AMOUNT, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #FINAL_CONCENTRATION} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalConcentration<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Concentration<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "FinalConcentration" field
+	 */
+	public Double getFinalConcentration() {
+		return getField(FINAL_CONCENTRATION);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #FINAL_CONCENTRATION} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalConcentration<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Concentration<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "FinalConcentration" field
+	 */
+	public void setFinalConcentration(Double value) {
+		setField(FINAL_CONCENTRATION, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #FINAL_STORAGE_BUFFER} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalStorageBuffer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Storage Buffer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "FinalStorageBuffer" field
+	 */
+	public String getFinalStorageBuffer() {
+		return getField(FINAL_STORAGE_BUFFER);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #FINAL_STORAGE_BUFFER} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalStorageBuffer<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Storage Buffer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "FinalStorageBuffer" field
+	 */
+	public void setFinalStorageBuffer(String value) {
+		setField(FINAL_STORAGE_BUFFER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #FINAL_TOTAL_AMOUNT} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalTotalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Total Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "FinalTotalAmount" field
+	 */
+	public Double getFinalTotalAmount() {
+		return getField(FINAL_TOTAL_AMOUNT);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #FINAL_TOTAL_AMOUNT} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalTotalAmount<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Total Amount<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "FinalTotalAmount" field
+	 */
+	public void setFinalTotalAmount(Double value) {
+		setField(FINAL_TOTAL_AMOUNT, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #FINAL_VOLUME} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalVolume<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Volume<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "FinalVolume" field
+	 */
+	public Double getFinalVolume() {
+		return getField(FINAL_VOLUME);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #FINAL_VOLUME} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalVolume<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Volume<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "FinalVolume" field
+	 */
+	public void setFinalVolume(Double value) {
+		setField(FINAL_VOLUME, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #FLOW_CELL_LANE_ASSIGMENT} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FlowCellLaneAssigment<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Flow Cell Lane Assigment<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "FlowCellLaneAssigment" field
+	 */
+	public String getFlowCellLaneAssigment() {
+		return getField(FLOW_CELL_LANE_ASSIGMENT);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #FLOW_CELL_LANE_ASSIGMENT} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FlowCellLaneAssigment<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Flow Cell Lane Assigment<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "FlowCellLaneAssigment" field
+	 */
+	public void setFlowCellLaneAssigment(String value) {
+		setField(FLOW_CELL_LANE_ASSIGMENT, value);
 	}
 	
 	/**
@@ -893,6 +1565,36 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #MAIN_PEAK_AREA} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: MainPeakArea<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Main Peak Area<br/>
+	 * <br/>
+	 * <b>Description</b>: Field to manually enter the Main Peak Area results for analytical HPLC (SEC).
+	 * 
+	 * @return the value stored on the "MainPeakArea" field
+	 */
+	public Double getMainPeakArea() {
+		return getField(MAIN_PEAK_AREA);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #MAIN_PEAK_AREA} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: MainPeakArea<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Main Peak Area<br/>
+	 * <br/>
+	 * <b>Description</b>: Field to manually enter the Main Peak Area results for analytical HPLC (SEC).
+	 * 
+	 * @param value The value to set on the "MainPeakArea" field
+	 */
+	public void setMainPeakArea(Double value) {
+		setField(MAIN_PEAK_AREA, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #MULTIPLEX_INSTRUCTIONS} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: MultiplexInstructions<br/>
@@ -1040,6 +1742,126 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 */
 	public void setPlateId(String value) {
 		setField(PLATE_ID, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #PURITY} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: Purity<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Purity %<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "Purity" field
+	 */
+	public Double getPurity() {
+		return getField(PURITY);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #PURITY} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: Purity<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Purity %<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "Purity" field
+	 */
+	public void setPurity(Double value) {
+		setField(PURITY, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #ROUTETO_DIALYSIS} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: RoutetoDialysis<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Dialysis<br/>
+	 * <br/>
+	 * <b>Description</b>: Field to trigger routing to buffer exchange by dialysis.
+	 * 
+	 * @return the value stored on the "RoutetoDialysis" field
+	 */
+	public Boolean getRoutetoDialysis() {
+		return getField(ROUTETO_DIALYSIS);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #ROUTETO_DIALYSIS} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: RoutetoDialysis<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Dialysis<br/>
+	 * <br/>
+	 * <b>Description</b>: Field to trigger routing to buffer exchange by dialysis.
+	 * 
+	 * @param value The value to set on the "RoutetoDialysis" field
+	 */
+	public void setRoutetoDialysis(Boolean value) {
+		setField(ROUTETO_DIALYSIS, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #ROUTETO_TITER} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: RoutetoTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Titer?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "RoutetoTiter" field
+	 */
+	public Boolean getRoutetoTiter() {
+		return getField(ROUTETO_TITER);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #ROUTETO_TITER} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: RoutetoTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Titer?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "RoutetoTiter" field
+	 */
+	public void setRoutetoTiter(Boolean value) {
+		setField(ROUTETO_TITER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #ROUTTO_FINAL_POOLING} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: RouttoFinalPooling<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Final Pooling?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "RouttoFinalPooling" field
+	 */
+	public Boolean getRouttoFinalPooling() {
+		return getField(ROUTTO_FINAL_POOLING);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #ROUTTO_FINAL_POOLING} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: RouttoFinalPooling<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Route to Final Pooling?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "RouttoFinalPooling" field
+	 */
+	public void setRouttoFinalPooling(Boolean value) {
+		setField(ROUTTO_FINAL_POOLING, value);
 	}
 	
 	/**
@@ -1220,6 +2042,126 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 */
 	public void setSampleType(String value) {
 		setField(SAMPLE_TYPE, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #SELECTED_FOR_TITER} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SelectedForTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Selected For Titer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "SelectedForTiter" field
+	 */
+	public Boolean getSelectedForTiter() {
+		return getField(SELECTED_FOR_TITER);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #SELECTED_FOR_TITER} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SelectedForTiter<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Selected For Titer<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "SelectedForTiter" field
+	 */
+	public void setSelectedForTiter(Boolean value) {
+		setField(SELECTED_FOR_TITER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #SELECTEDFOR_SEC} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SelectedforSEC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Selected for SEC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "SelectedforSEC" field
+	 */
+	public Boolean getSelectedforSEC() {
+		return getField(SELECTEDFOR_SEC);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #SELECTEDFOR_SEC} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SelectedforSEC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Selected for SEC<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "SelectedforSEC" field
+	 */
+	public void setSelectedforSEC(Boolean value) {
+		setField(SELECTEDFOR_SEC, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #SENDTO_PREPARATIVE_HPLC} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SendtoPreparativeHPLC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Send to Preparative HPLC?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "SendtoPreparativeHPLC" field
+	 */
+	public Boolean getSendtoPreparativeHPLC() {
+		return getField(SENDTO_PREPARATIVE_HPLC);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #SENDTO_PREPARATIVE_HPLC} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SendtoPreparativeHPLC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Send to Preparative HPLC?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "SendtoPreparativeHPLC" field
+	 */
+	public void setSendtoPreparativeHPLC(Boolean value) {
+		setField(SENDTO_PREPARATIVE_HPLC, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #SKIP_BUFFER_EXCHANGE} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SkipBufferExchange<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Skip Buffer Exchange?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "SkipBufferExchange" field
+	 */
+	public Boolean getSkipBufferExchange() {
+		return getField(SKIP_BUFFER_EXCHANGE);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #SKIP_BUFFER_EXCHANGE} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: SkipBufferExchange<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Skip Buffer Exchange?<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "SkipBufferExchange" field
+	 */
+	public void setSkipBufferExchange(Boolean value) {
+		setField(SKIP_BUFFER_EXCHANGE, value);
 	}
 	
 	/**
@@ -1730,6 +2672,156 @@ public class ELNSampleDetailModel extends AbstractRecordModelWrapper {
 	 */
 	public void setTargetVolumeRequired(Double value) {
 		setField(TARGET_VOLUME_REQUIRED, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #TEMP_C} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TempC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Temp (C)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "TempC" field
+	 */
+	public Double getTempC() {
+		return getField(TEMP_C);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #TEMP_C} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TempC<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Temp (C)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "TempC" field
+	 */
+	public void setTempC(Double value) {
+		setField(TEMP_C, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #TIMEMIN} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: Timemin<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Time (min)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "Timemin" field
+	 */
+	public Double getTimemin() {
+		return getField(TIMEMIN);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #TIMEMIN} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: Timemin<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Time (min)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "Timemin" field
+	 */
+	public void setTimemin(Double value) {
+		setField(TIMEMIN, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #TOTAL_MASS_FORMULA} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TotalMassFormula<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Mass (mg)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "TotalMassFormula" field
+	 */
+	public Double getTotalMassFormula() {
+		return getField(TOTAL_MASS_FORMULA);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #TOTAL_MASS_FORMULA} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TotalMassFormula<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Mass (mg)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "TotalMassFormula" field
+	 */
+	public void setTotalMassFormula(Double value) {
+		setField(TOTAL_MASS_FORMULA, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #TOTAL_MASSMG_2} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TotalMassmg2<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Mass (mg)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "TotalMassmg2" field
+	 */
+	public Double getTotalMassmg2() {
+		return getField(TOTAL_MASSMG_2);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #TOTAL_MASSMG_2} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TotalMassmg2<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Mass (mg)<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "TotalMassmg2" field
+	 */
+	public void setTotalMassmg2(Double value) {
+		setField(TOTAL_MASSMG_2, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #TOTAL_VOLUME} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TotalVolume<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Volume<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "TotalVolume" field
+	 */
+	public Double getTotalVolume() {
+		return getField(TOTAL_VOLUME);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #TOTAL_VOLUME} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: TotalVolume<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Total Volume<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "TotalVolume" field
+	 */
+	public void setTotalVolume(Double value) {
+		setField(TOTAL_VOLUME, value);
 	}
 	
 	/**
