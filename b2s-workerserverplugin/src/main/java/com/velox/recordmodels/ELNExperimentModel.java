@@ -76,6 +76,15 @@ public class ELNExperimentModel extends AbstractRecordModelWrapper {
 	public static final String DATE_CREATED = "DateCreated";
 
 	/**
+	 * <b>Data Field Name</b>: FinalWarningSent<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Warning Sent<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String FINAL_WARNING_SENT = "FinalWarningSent";
+
+	/**
 	 * <b>Data Field Name</b>: FlowcellId<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Flow Cell ID<br/>
@@ -401,6 +410,36 @@ public class ELNExperimentModel extends AbstractRecordModelWrapper {
 	 */
 	public Long getDateCreated() {
 		return getField(DATE_CREATED);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #FINAL_WARNING_SENT} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalWarningSent<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Warning Sent<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "FinalWarningSent" field
+	 */
+	public Boolean getFinalWarningSent() {
+		return getField(FINAL_WARNING_SENT);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #FINAL_WARNING_SENT} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: FinalWarningSent<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Final Warning Sent<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "FinalWarningSent" field
+	 */
+	public void setFinalWarningSent(Boolean value) {
+		setField(FINAL_WARNING_SENT, value);
 	}
 	
 	/**
