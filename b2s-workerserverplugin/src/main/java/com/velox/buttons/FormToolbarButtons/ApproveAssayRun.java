@@ -15,6 +15,8 @@
 package com.velox.buttons.FormToolbarButtons;
 
 import com.velox.RemoteIconUtil;
+import com.velox.api.datatype.TemporaryDataType;
+import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.directive.RefreshCurrentViewDirective;
@@ -22,12 +24,15 @@ import com.velox.api.plugin.invocation.context.FormToolbarContext;
 import com.velox.api.plugin.invocation.context.OnFormToolbarContext;
 import com.velox.api.user.ESignAuthentication;
 import com.velox.api.user.UserGroupInfo;
+import com.velox.api.util.ServerException;
 import com.velox.recordmodels.SBA_AssayRunResultModel;
 import com.velox.recordmodels.SBA_MasterAssayRunModel;
+import com.velox.sapio.commons.exemplar.definition.form.FormBuilder;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlugin;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import org.apache.commons.lang3.StringUtils;
 
+import java.rmi.RemoteException;
 import java.util.Collection;
 import java.util.List;
 
@@ -48,6 +53,8 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
             "This run has manual outcome changes on its results. Please utilize the 'Override' feature to approve it instead";
     private static final String PI_REQUIRED_MESSAGE =
             "Only a user in the Principal Investigator group may approve this Master Assay Run.";
+    private static final String SAME_USER_MESSAGE =
+            "The Principal Investigator who approves this Master Assay Run must be different from the user who completed it.";
 
     @Override
     public String getDescription() {
@@ -70,7 +77,9 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
     }
 
     /**
-     * Shown only on {@link SBA_MasterAssayRunModel} forms where {@code C_Approved} is not true.
+     * Shown only on {@link SBA_MasterAssayRunModel} forms where {@code C_Approved} is not true,
+     * both {@code SBA_DateCompleted} and {@code SBA_CompletedBy} are populated, and the current
+     * user belongs to the Principal Investigator group.
      */
     @Override
     public boolean onFormToolbar(OnFormToolbarContext ctx) throws Throwable {
@@ -81,10 +90,15 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
         if (ctx.getDataRecord() == null) {
             return false;
         }
+        if (!isUserInPrincipalInvestigatorGroup(user.getUsername())) {
+            return false;
+        }
 
         SBA_MasterAssayRunModel assayRun =
                 instMan.addExistingRecordOfType(ctx.getDataRecord(), SBA_MasterAssayRunModel.class);
-        return !Boolean.TRUE.equals(assayRun.getC_Approved());
+        return !Boolean.TRUE.equals(assayRun.getC_Approved())
+                && assayRun.getSBA_DateCompleted() != null
+                && StringUtils.isNotBlank(assayRun.getSBA_CompletedBy());
     }
 
     @Override
@@ -111,7 +125,7 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
                     "Electronic Signature",
                     "A Principal Investigator must authenticate to approve this Master Assay Run.",
                     true,
-                    null,
+                    buildReadOnlyESignFields(masterAssayRun),
                     user);
             if (eSign == null || !eSign.isAuthenticated()) {
                 return new PluginResult(true);
@@ -119,6 +133,11 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
 
             if (!isPrincipalInvestigator(eSign)) {
                 clientCallback.displayError(PI_REQUIRED_MESSAGE);
+                return new PluginResult(false);
+            }
+
+            if (isSameAsCompletedBy(eSign, masterAssayRun)) {
+                clientCallback.displayError(SAME_USER_MESSAGE);
                 return new PluginResult(false);
             }
 
@@ -132,21 +151,72 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
     }
 
     /**
+     * Builds read-only summary fields for the e-sign dialog from the current Master Assay Run.
+     */
+    private static TemporaryDataType buildReadOnlyESignFields(SBA_MasterAssayRunModel masterAssayRun) throws ServerException, RemoteException {
+        FormBuilder formBuilder = new FormBuilder();
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName(SBA_MasterAssayRunModel.SBA___RUN_RESULT)
+                .displayName("Run Result")
+                .editable(false)
+                .required(false)
+                .defaultValue(masterAssayRun.getSBA_RunResult())
+                .build());
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName(SBA_MasterAssayRunModel.SBA___OVERRIDE_COMMENT)
+                .displayName("Override Comment")
+                .editable(false)
+                .required(false)
+                .defaultValue(masterAssayRun.getSBA_OverrideComment())
+                .build());
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName(SBA_MasterAssayRunModel.SBA___COMPLETED_BY)
+                .displayName("Completed By")
+                .editable(false)
+                .required(false)
+                .defaultValue(masterAssayRun.getSBA_CompletedBy())
+                .build());
+        return formBuilder.getTemporaryDataType();
+    }
+
+    /**
      * Returns true when the e-signing user belongs to {@value #PRINCIPAL_INVESTIGATOR_GROUP}.
      */
     private boolean isPrincipalInvestigator(ESignAuthentication eSign) throws Throwable {
         if (eSign.getUserInfo() == null || StringUtils.isBlank(eSign.getUserInfo().getUsername())) {
             return false;
         }
+        return isUserInPrincipalInvestigatorGroup(eSign.getUserInfo().getUsername());
+    }
+
+    /**
+     * Returns true when the given username belongs to {@value #PRINCIPAL_INVESTIGATOR_GROUP}.
+     */
+    private boolean isUserInPrincipalInvestigatorGroup(String username) throws Throwable {
+        if (StringUtils.isBlank(username)) {
+            return false;
+        }
 
         List<UserGroupInfo> groups = dataMgmtServer.getUserGroupManager(user)
-                .getUserGroupInfoListForUser(eSign.getUserInfo().getUsername(), user);
+                .getUserGroupInfoListForUser(username, user);
         if (groups == null || groups.isEmpty()) {
             return false;
         }
 
         return groups.stream()
                 .anyMatch(group -> PRINCIPAL_INVESTIGATOR_GROUP.equals(group.getUserGroupName()));
+    }
+
+    /**
+     * Returns true when the e-signing user is the same as {@code SBA_CompletedBy} on the run.
+     */
+    private static boolean isSameAsCompletedBy(
+            ESignAuthentication eSign, SBA_MasterAssayRunModel masterAssayRun) throws RemoteException {
+        if (eSign.getUserInfo() == null || StringUtils.isBlank(eSign.getUserInfo().getUsername())) {
+            return false;
+        }
+        return StringUtils.equalsIgnoreCase(
+                eSign.getUserInfo().getUsername(), masterAssayRun.getSBA_CompletedBy());
     }
 
     /**
