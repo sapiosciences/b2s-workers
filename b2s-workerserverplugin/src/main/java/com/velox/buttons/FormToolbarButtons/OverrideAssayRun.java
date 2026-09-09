@@ -5,16 +5,14 @@
  * ====================================================================
  */
 /**
- * Created: 2026-08-31 12:00
- * Agent type: Composer
- * Modified: 2026-08-31 12:25
- * Agent type: Composer
- * Modified: 2026-08-31 12:30
+ * Created: 2026-08-31 12:35
  * Agent type: Composer
  */
-package com.velox.FormToolbarButtons;
+package com.velox.buttons.FormToolbarButtons;
 
 import com.velox.RemoteIconUtil;
+import com.velox.api.datatype.TemporaryDataType;
+import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.directive.RefreshCurrentViewDirective;
@@ -24,39 +22,40 @@ import com.velox.api.user.ESignAuthentication;
 import com.velox.api.user.UserGroupInfo;
 import com.velox.recordmodels.SBA_AssayRunResultModel;
 import com.velox.recordmodels.SBA_MasterAssayRunModel;
+import com.velox.sapio.commons.exemplar.definition.form.FormBuilder;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlugin;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Form toolbar button on {@link SBA_MasterAssayRunModel} records that are not yet approved.
- * Approves the run after verifying child {@link SBA_AssayRunResultModel} outcome fields are consistent
- * and collecting an electronic signature from a Principal Investigator.
+ * Collects override or rejection reasons for child results whose outcome fields are out of
+ * alignment, then e-signs as a Principal Investigator and approves the run.
  */
-public class ApproveAssayRun extends DefaultFormToolbarPlugin {
+public class OverrideAssayRun extends DefaultFormToolbarPlugin {
 
     private static final String STATUS_PASSED = "Passed";
     private static final String STATUS_FAILED = "Failed";
     private static final String ACCEPT = "Accept";
     private static final String REJECT = "Reject";
     private static final String PRINCIPAL_INVESTIGATOR_GROUP = "Principal Investigator";
+    private static final String REASON_FIELD = "Reason";
 
-    private static final String MANUAL_OUTCOME_MESSAGE =
-            "This run has manual outcome changes on its results. Please utilize the 'Override' feature to approve it instead";
     private static final String PI_REQUIRED_MESSAGE =
             "Only a user in the Principal Investigator group may approve this Master Assay Run.";
 
     @Override
     public String getDescription() {
-        return "Approve this Master Assay Run.";
+        return "Override and approve this Master Assay Run when result outcomes have been changed manually.";
     }
 
     @Override
     public String getLine1Text() {
-        return "Approve";
+        return "Override";
     }
 
     @Override
@@ -66,7 +65,7 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
 
     @Override
     public byte[] getIcon() {
-        return RemoteIconUtil.getRemoteIcon(this, "check-decagram.svg");
+        return RemoteIconUtil.getRemoteIcon(this, "step-over.svg");
     }
 
     /**
@@ -102,14 +101,11 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
             Collection<SBA_AssayRunResultModel> results =
                     masterAssayRun.get(Children.ofType(SBA_AssayRunResultModel.class));
 
-            if (hasInconsistentResult(results)) {
-                clientCallback.displayWarning(MANUAL_OUTCOME_MESSAGE);
-                return new PluginResult(false);
-            }
+            collectReasonsForMisalignedResults(results);
 
             ESignAuthentication eSign = clientCallback.showESignDialog(
                     "Electronic Signature",
-                    "A Principal Investigator must authenticate to approve this Master Assay Run.",
+                    "A Principal Investigator must authenticate to override and approve this Master Assay Run.",
                     true,
                     null,
                     user);
@@ -123,7 +119,7 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
             }
 
             masterAssayRun.setC_Approved(true);
-            recMan.storeAndCommit("Approve Master Assay Run " + masterAssayRun.getRecordId());
+            recMan.storeAndCommit("Override and approve Master Assay Run " + masterAssayRun.getRecordId());
 
             return new PluginResult(true, new RefreshCurrentViewDirective());
         } catch (UserRequestedCancelServerException e) {
@@ -132,8 +128,81 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
     }
 
     /**
-     * Returns true when the e-signing user belongs to {@value #PRINCIPAL_INVESTIGATOR_GROUP}.
+     * For each child whose outcome fields are not aligned, prompts for and stores either a
+     * manual override reason ({@link SBA_AssayRunResultModel#SBA___MANUAL_OVERRIDE_REASON}) when
+     * Accept/Reject is Accept, or a manual rejection reason
+     * ({@link SBA_AssayRunResultModel#SBA___MANUAL_REJECTION_REASON}) when Accept/Reject is Reject.
      */
+    private void collectReasonsForMisalignedResults(Collection<SBA_AssayRunResultModel> results)
+            throws Throwable {
+        if (results == null || results.isEmpty()) {
+            return;
+        }
+
+        for (SBA_AssayRunResultModel result : results) {
+            if (isOutcomeConsistent(result)) {
+                continue;
+            }
+
+            String acceptOrReject = result.getSBA_AcceptOrReject();
+            if (ACCEPT.equals(acceptOrReject)) {
+                String reason = promptForReason(
+                        "Override Reason",
+                        "Provide an override reason for result "
+                                + describeResult(result) + " (Accept/Reject is Accept).",
+                        "Override Reason");
+                result.setSBA_ManualOverrideReason(reason);
+            } else if (REJECT.equals(acceptOrReject)) {
+                String reason = promptForReason(
+                        "Rejection Reason",
+                        "Provide a rejection reason for result "
+                                + describeResult(result) + " (Accept/Reject is Reject).",
+                        "Rejection Reason");
+                result.setSBA_ManualRejectionReason(reason);
+            } else {
+                clientCallback.displayError(
+                        "Result " + describeResult(result)
+                                + " has misaligned outcome fields but Accept/Reject is not set to Accept or Reject.");
+                throw new UserRequestedCancelServerException();
+            }
+        }
+    }
+
+    private String promptForReason(String title, String message, String displayName) throws Throwable {
+        FormBuilder formBuilder = new FormBuilder();
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName(REASON_FIELD)
+                .displayName(displayName)
+                .required(true)
+                .editable(true)
+                .build());
+        TemporaryDataType temporaryDataType = formBuilder.getTemporaryDataType();
+
+        Map<String, Object> entered = clientCallback.showFieldEntryDialog(
+                title, message, temporaryDataType, user);
+        if (entered == null) {
+            throw new UserRequestedCancelServerException();
+        }
+
+        Object rawReason = entered.get(REASON_FIELD);
+        String reason = rawReason == null ? null : rawReason.toString().trim();
+        if (StringUtils.isBlank(reason)) {
+            clientCallback.displayError(displayName + " is required.");
+            throw new UserRequestedCancelServerException();
+        }
+        return reason;
+    }
+
+    private static String describeResult(SBA_AssayRunResultModel result) {
+        if (StringUtils.isNotBlank(result.getSBA_AnalyteName())) {
+            return result.getSBA_AnalyteName();
+        }
+        if (StringUtils.isNotBlank(result.getDataRecordName())) {
+            return result.getDataRecordName();
+        }
+        return "RecordId " + result.getRecordId();
+    }
+
     private boolean isPrincipalInvestigator(ESignAuthentication eSign) throws Throwable {
         if (eSign.getUserInfo() == null || StringUtils.isBlank(eSign.getUserInfo().getUsername())) {
             return false;
@@ -147,26 +216,6 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
 
         return groups.stream()
                 .anyMatch(group -> PRINCIPAL_INVESTIGATOR_GROUP.equals(group.getUserGroupName()));
-    }
-
-    /**
-     * Returns true if any child result has {@code SBA_FailureDetected}, {@code SBA_AcceptOrReject},
-     * and {@code SBA_Status} that are not mutually consistent.
-     * <ul>
-     *   <li>Failure detected → Accept/Reject = Reject and Status = Failed</li>
-     *   <li>No failure detected → Accept/Reject = Accept and Status = Passed</li>
-     * </ul>
-     */
-    private static boolean hasInconsistentResult(Collection<SBA_AssayRunResultModel> results) {
-        if (results == null || results.isEmpty()) {
-            return false;
-        }
-        for (SBA_AssayRunResultModel result : results) {
-            if (!isOutcomeConsistent(result)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean isOutcomeConsistent(SBA_AssayRunResultModel result) {
