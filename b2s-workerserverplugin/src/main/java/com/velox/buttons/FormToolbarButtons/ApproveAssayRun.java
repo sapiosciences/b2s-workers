@@ -79,7 +79,7 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
     /**
      * Shown only on {@link SBA_MasterAssayRunModel} forms where {@code C_Approved} is not true,
      * both {@code SBA_DateCompleted} and {@code SBA_CompletedBy} are populated, and the current
-     * user belongs to the Principal Investigator group.
+     * user's active group is Principal Investigator.
      */
     @Override
     public boolean onFormToolbar(OnFormToolbarContext ctx) throws Throwable {
@@ -90,7 +90,8 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
         if (ctx.getDataRecord() == null) {
             return false;
         }
-        if (!isUserInPrincipalInvestigatorGroup(user.getUsername())) {
+        if (user.getUserGroup() == null
+                || !PRINCIPAL_INVESTIGATOR_GROUP.equals(user.getUserGroup().getGroupName())) {
             return false;
         }
 
@@ -186,19 +187,9 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
         if (eSign.getUserInfo() == null || StringUtils.isBlank(eSign.getUserInfo().getUsername())) {
             return false;
         }
-        return isUserInPrincipalInvestigatorGroup(eSign.getUserInfo().getUsername());
-    }
-
-    /**
-     * Returns true when the given username belongs to {@value #PRINCIPAL_INVESTIGATOR_GROUP}.
-     */
-    private boolean isUserInPrincipalInvestigatorGroup(String username) throws Throwable {
-        if (StringUtils.isBlank(username)) {
-            return false;
-        }
 
         List<UserGroupInfo> groups = dataMgmtServer.getUserGroupManager(user)
-                .getUserGroupInfoListForUser(username, user);
+                .getUserGroupInfoListForUser(eSign.getUserInfo().getUsername(), user);
         if (groups == null || groups.isEmpty()) {
             return false;
         }
