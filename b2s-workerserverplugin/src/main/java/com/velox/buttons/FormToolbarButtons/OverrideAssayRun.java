@@ -20,6 +20,7 @@ import com.velox.api.plugin.invocation.context.FormToolbarContext;
 import com.velox.api.plugin.invocation.context.OnFormToolbarContext;
 import com.velox.api.user.ESignAuthentication;
 import com.velox.api.user.UserGroupInfo;
+import com.velox.api.util.ServerException;
 import com.velox.recordmodels.SBA_AssayRunResultModel;
 import com.velox.recordmodels.SBA_MasterAssayRunModel;
 import com.velox.sapio.commons.exemplar.definition.form.FormBuilder;
@@ -27,6 +28,7 @@ import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlu
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import org.apache.commons.lang3.StringUtils;
 
+import java.rmi.RemoteException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +49,8 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
 
     private static final String PI_REQUIRED_MESSAGE =
             "Only a user in the Principal Investigator group may approve this Master Assay Run.";
+    private static final String SAME_USER_MESSAGE =
+            "The Principal Investigator who approves this Master Assay Run must be different from the user who completed it.";
 
     @Override
     public String getDescription() {
@@ -69,7 +73,9 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
     }
 
     /**
-     * Shown only on {@link SBA_MasterAssayRunModel} forms where {@code C_Approved} is not true.
+     * Shown only on {@link SBA_MasterAssayRunModel} forms where {@code C_Approved} is not true,
+     * both {@code SBA_DateCompleted} and {@code SBA_CompletedBy} are populated, and the current
+     * user's active group is Principal Investigator.
      */
     @Override
     public boolean onFormToolbar(OnFormToolbarContext ctx) throws Throwable {
@@ -80,10 +86,16 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
         if (ctx.getDataRecord() == null) {
             return false;
         }
+        if (user.getUserGroup() == null
+                || !PRINCIPAL_INVESTIGATOR_GROUP.equals(user.getUserGroup().getGroupName())) {
+            return false;
+        }
 
         SBA_MasterAssayRunModel assayRun =
                 instMan.addExistingRecordOfType(ctx.getDataRecord(), SBA_MasterAssayRunModel.class);
-        return !Boolean.TRUE.equals(assayRun.getC_Approved());
+        return !Boolean.TRUE.equals(assayRun.getC_Approved())
+                && assayRun.getSBA_DateCompleted() != null
+                && StringUtils.isNotBlank(assayRun.getSBA_CompletedBy());
     }
 
     @Override
@@ -107,7 +119,7 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
                     "Electronic Signature",
                     "A Principal Investigator must authenticate to override and approve this Master Assay Run.",
                     true,
-                    null,
+                    buildReadOnlyESignFields(masterAssayRun),
                     user);
             if (eSign == null || !eSign.isAuthenticated()) {
                 return new PluginResult(true);
@@ -118,6 +130,11 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
                 return new PluginResult(false);
             }
 
+            if (isSameAsCompletedBy(eSign, masterAssayRun)) {
+                clientCallback.displayError(SAME_USER_MESSAGE);
+                return new PluginResult(false);
+            }
+
             masterAssayRun.setC_Approved(true);
             recMan.storeAndCommit("Override and approve Master Assay Run " + masterAssayRun.getRecordId());
 
@@ -125,6 +142,35 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
         } catch (UserRequestedCancelServerException e) {
             return new PluginResult(true);
         }
+    }
+
+    /**
+     * Builds read-only summary fields for the e-sign dialog from the current Master Assay Run.
+     */
+    private static TemporaryDataType buildReadOnlyESignFields(SBA_MasterAssayRunModel masterAssayRun) throws ServerException, RemoteException {
+        FormBuilder formBuilder = new FormBuilder();
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName(SBA_MasterAssayRunModel.SBA___RUN_RESULT)
+                .displayName("Run Result")
+                .editable(false)
+                .required(false)
+                .defaultValue(masterAssayRun.getSBA_RunResult())
+                .build());
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName(SBA_MasterAssayRunModel.SBA___OVERRIDE_COMMENT)
+                .displayName("Override Comment")
+                .editable(false)
+                .required(false)
+                .defaultValue(masterAssayRun.getSBA_OverrideComment())
+                .build());
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName(SBA_MasterAssayRunModel.SBA___COMPLETED_BY)
+                .displayName("Completed By")
+                .editable(false)
+                .required(false)
+                .defaultValue(masterAssayRun.getSBA_CompletedBy())
+                .build());
+        return formBuilder.getTemporaryDataType();
     }
 
     /**
@@ -216,6 +262,18 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
 
         return groups.stream()
                 .anyMatch(group -> PRINCIPAL_INVESTIGATOR_GROUP.equals(group.getUserGroupName()));
+    }
+
+    /**
+     * Returns true when the e-signing user is the same as {@code SBA_CompletedBy} on the run.
+     */
+    private static boolean isSameAsCompletedBy(
+            ESignAuthentication eSign, SBA_MasterAssayRunModel masterAssayRun) throws RemoteException {
+        if (eSign.getUserInfo() == null || StringUtils.isBlank(eSign.getUserInfo().getUsername())) {
+            return false;
+        }
+        return StringUtils.equalsIgnoreCase(
+                eSign.getUserInfo().getUsername(), masterAssayRun.getSBA_CompletedBy());
     }
 
     private static boolean isOutcomeConsistent(SBA_AssayRunResultModel result) {
