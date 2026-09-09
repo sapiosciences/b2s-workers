@@ -4,7 +4,7 @@
  * This software is the property of Sapio Sciences.
  * ====================================================================
  */
-package com.velox.FormToolbarButtons;
+package com.velox.buttons.FormToolbarButtons;
 
 import com.velox.RemoteIconUtil;
 import com.velox.api.clientcallback.DataRecordSelectionCriteria;
