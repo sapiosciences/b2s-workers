@@ -13,7 +13,6 @@ import com.velox.api.datarecord.DataRecord;
 import com.velox.api.datatype.DataTypeDefinition;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
-import com.velox.api.datatype.fielddefinition.VeloxSelectionFieldDefinition;
 import com.velox.api.datatype.fielddefinition.VeloxStringFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
@@ -52,6 +51,12 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
 
     private static final String PASSWORD_FIELD = "Password";
     private static final String USER_GROUP_FIELD = "UserGroup";
+    private static final String SPONSOR_APPROVER_GROUP = "Sponsor Approver";
+    private static final String SPONSOR_VIEWER_GROUP = "Sponsor Viewer";
+    private static final List<String> SPONSOR_USER_GROUPS = List.of(
+            SPONSOR_APPROVER_GROUP,
+            SPONSOR_VIEWER_GROUP
+    );
 
     @Override
     public String getLine1Text() {
@@ -182,7 +187,8 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
                 .editable(true)
                 .visible(true)
                 .multiSelect(true)
-                .listMode(VeloxSelectionFieldDefinition.USERGROUP_MODE)
+                .directEdit(false)
+                .staticListValues(SPONSOR_USER_GROUPS)
                 .build());
 
         return formBuilder.getTemporaryDataType();
@@ -259,17 +265,21 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
 
         newUser.commitChanges(user);
         // createUser auto-adds users to every "default" group; sync membership to only what was selected.
-        syncUserGroups(username, stringValue(entered.get(USER_GROUP_FIELD)));
+        String selectedGroupsRaw = stringValue(entered.get(USER_GROUP_FIELD));
+        syncUserGroups(username, selectedGroupsRaw);
         // User must already exist/commit before Directory ACL can reference them.
-        updateDirectoryAcls(username, stringValue(entered.get(VeloxUserModel.C___SPONSOR)));
+        updateDirectoryAcls(username, stringValue(entered.get(VeloxUserModel.C___SPONSOR)), selectedGroupsRaw);
     }
 
     /**
      * Grants the new user ACL only on the Directory whose name matches the selected sponsor.
      * Removes that user's ACL from every other Directory, and clears group permissions on all
      * Directory ACLs so access is user-based only.
+     * <p>
+     * Sponsor Approver gets full access; Sponsor Viewer alone gets read-only access.
      */
-    private void updateDirectoryAcls(String username, String sponsorName) throws Throwable {
+    private void updateDirectoryAcls(String username, String sponsorName, String selectedGroupsRaw)
+            throws Throwable {
         if (StringUtils.isBlank(sponsorName)) {
             clientCallback.displayWarning("No sponsor was selected; Directory ACL was not updated.");
             return;
@@ -298,6 +308,7 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
             return;
         }
 
+        DataRecordAccess matchingDirectoryAccess = buildSponsorDirectoryAccess(selectedGroupsRaw);
         Long matchingRecordId = matchingDirectory.getRecordId();
         for (DirectoryModel directory : directories) {
             DataRecord directoryRecord = directory.getDataRecord();
@@ -310,9 +321,7 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
             acl.setGroupAccessMap(new HashMap<>());
 
             if (matchingRecordId.equals(directory.getRecordId())) {
-                DataRecordAccess userAccess = new DataRecordAccess(true, true, true, true);
-                userAccess.setAccess(DataRecordAccess.ACLMGMT, true);
-                acl.setUserAccess(username, userAccess);
+                acl.setUserAccess(username, matchingDirectoryAccess);
             } else {
                 Map<String, DataRecordAccess> userAccessMap = acl.getDataRecordAccessMap();
                 if (userAccessMap == null) {
@@ -332,6 +341,21 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
                 "Updated Directory ACL for sponsor user " + username,
                 clientCallback.getClientCallbackRMI(),
                 user);
+    }
+
+    /**
+     * Approvers get full directory access; viewers alone get read-only.
+     * If both groups are selected, Approver access wins.
+     */
+    private static DataRecordAccess buildSponsorDirectoryAccess(String selectedGroupsRaw) {
+        Set<String> selectedGroups = parseCsv(selectedGroupsRaw);
+        if (selectedGroups.contains(SPONSOR_APPROVER_GROUP)) {
+            DataRecordAccess fullAccess = new DataRecordAccess(true, true, true, true);
+            fullAccess.setAccess(DataRecordAccess.ACLMGMT, true);
+            return fullAccess;
+        }
+        // Sponsor Viewer (or no recognized group): read only
+        return new DataRecordAccess(true, false, false, false);
     }
 
     /**
