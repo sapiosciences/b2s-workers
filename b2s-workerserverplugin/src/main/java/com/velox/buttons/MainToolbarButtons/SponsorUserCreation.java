@@ -11,7 +11,6 @@ import com.velox.api.access.DataRecordACL;
 import com.velox.api.access.DataRecordAccess;
 import com.velox.api.clientcallback.InputDialogCriteria;
 import com.velox.api.datarecord.DataRecord;
-import com.velox.api.datatype.DataTypeDefinition;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.datatype.fielddefinition.VeloxStringFieldDefinition;
@@ -20,7 +19,6 @@ import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.invocation.ActionMenuPlugin;
 import com.velox.api.plugin.invocation.context.ActionMenuContext;
 import com.velox.api.plugin.invocation.context.OnActionMenuContext;
-import com.velox.api.servermanager.DataTypeManager;
 import com.velox.api.user.User;
 import com.velox.api.user.UserCriteria;
 import com.velox.api.user.UserGroup;
@@ -29,6 +27,7 @@ import com.velox.api.user.UserGroupManager;
 import com.velox.api.user.VeloxUserManager;
 import com.velox.api.util.InputDialogResult;
 import com.velox.api.util.PopupType;
+import com.velox.recordmodels.C_SponsorModel;
 import com.velox.recordmodels.DirectoryModel;
 import com.velox.recordmodels.VeloxUserModel;
 import com.velox.sapio.commons.exemplar.definition.form.FormBuilder;
@@ -233,7 +232,7 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
                 .visible(true)
                 .build());
 
-        // Reuse the real VeloxUser sponsor field so picklists / tags stay consistent.
+        // Existing sponsors only — no free-text / create-new values.
         formBuilder.addField(getSponsorFieldDefinition());
 
         // Fixed list (not USERGROUP_MODE) so operators only pick Approver and/or Viewer.
@@ -252,31 +251,51 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
     }
 
     /**
-     * Copies the live VeloxUser {@code C_Sponsor} field definition and unlocks it for the dialog.
-     * Copying avoids mutating the system field definition itself.
+     * Builds a selection-only Sponsor field from existing {@code C_Sponsor} records.
+     * {@code directEdit(false)} blocks typing new values — operators must pick from the list.
      */
     private VeloxFieldDefinition<?> getSponsorFieldDefinition() throws Throwable {
-        DataTypeDefinition veloxUserDef = getInstance(DataTypeManager.class)
-                .getDataTypeDefinition(VeloxUserModel.DATA_TYPE_NAME);
-        if (veloxUserDef == null) {
-            clientCallback.displayError("VeloxUser data type is not available.");
-            throw new UserRequestedCancelServerException();
+        List<String> sponsorNames = loadExistingSponsorNames();
+        if (sponsorNames.isEmpty()) {
+            clientCallback.displayWarning(
+                    "No Sponsor records were found. Create sponsors before assigning them to users.");
         }
 
-        Map<String, VeloxFieldDefinition<?>> fields =
-                veloxUserDef.getVeloxFieldDefinitionMapWithExtensions(user);
-        VeloxFieldDefinition<?> sponsorField = fields.get(VeloxUserModel.C___SPONSOR);
-        if (sponsorField == null) {
-            clientCallback.displayError("Sponsor field is not defined on VeloxUser.");
-            throw new UserRequestedCancelServerException();
+        return VeloxFieldDefinition.selectionFieldBuilder()
+                .dataFieldName(VeloxUserModel.C___SPONSOR)
+                .displayName("Sponsor")
+                .required(false)
+                .editable(true)
+                .visible(true)
+                .multiSelect(false)
+                .directEdit(false)
+                .staticListValues(sponsorNames)
+                .build();
+    }
+
+    /**
+     * Loads sponsor names from existing C_Sponsor records (sorted, blanks skipped).
+     */
+    private List<String> loadExistingSponsorNames() throws Throwable {
+        List<DataRecord> sponsorRecords =
+                dataRecordManager.getAllRecordsOfType(C_SponsorModel.DATA_TYPE_NAME, user);
+        if (sponsorRecords == null || sponsorRecords.isEmpty()) {
+            return List.of();
         }
 
-        VeloxFieldDefinition<?> dialogField = sponsorField.copy();
-        dialogField.setSystemField(false);
-        dialogField.setVisible(true);
-        dialogField.setEditable(true);
-        dialogField.setRequired(false);
-        return dialogField;
+        List<C_SponsorModel> sponsors =
+                instMan.addExistingRecordsOfType(sponsorRecords, C_SponsorModel.class);
+        Set<String> uniqueNames = new HashSet<>();
+        for (C_SponsorModel sponsor : sponsors) {
+            String name = sponsor.getC_SponsorName();
+            if (StringUtils.isNotBlank(name)) {
+                uniqueNames.add(name.trim());
+            }
+        }
+
+        List<String> sponsorNames = new ArrayList<>(uniqueNames);
+        Collections.sort(sponsorNames);
+        return sponsorNames;
     }
 
     /**
