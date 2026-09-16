@@ -273,8 +273,8 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
 
     /**
      * Grants the new user ACL only on the Directory whose name matches the selected sponsor.
-     * Removes that user's ACL from every other Directory, and clears group permissions on all
-     * Directory ACLs so access is user-based only.
+     * Removes that user's ACL from every other Directory. Strips only Sponsor Approver /
+     * Sponsor Viewer from group ACL maps; all other group permissions are left unchanged.
      * <p>
      * Sponsor Approver gets full access; Sponsor Viewer alone gets read-only access.
      */
@@ -308,6 +308,7 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
             return;
         }
 
+        Set<Integer> sponsorGroupIds = resolveSponsorGroupIds();
         DataRecordAccess matchingDirectoryAccess = buildSponsorDirectoryAccess(selectedGroupsRaw);
         Long matchingRecordId = matchingDirectory.getRecordId();
         for (DirectoryModel directory : directories) {
@@ -317,8 +318,8 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
                 acl = new DataRecordACL(directoryRecord.getRecordId());
             }
 
-            // Directories use user permissions only — no group ACL entries.
-            acl.setGroupAccessMap(new HashMap<>());
+            // Only strip the two sponsor groups; leave every other group's ACL intact.
+            removeSponsorGroupsFromAcl(acl, sponsorGroupIds);
 
             if (matchingRecordId.equals(directory.getRecordId())) {
                 acl.setUserAccess(username, matchingDirectoryAccess);
@@ -341,6 +342,38 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
                 "Updated Directory ACL for sponsor user " + username,
                 clientCallback.getClientCallbackRMI(),
                 user);
+    }
+
+    /**
+     * Resolves group IDs for Sponsor Approver and Sponsor Viewer.
+     */
+    private Set<Integer> resolveSponsorGroupIds() throws Throwable {
+        Set<Integer> sponsorGroupIds = new HashSet<>();
+        UserGroupManager groupMan = dataMgmtServer.getUserGroupManager(user);
+        for (UserGroupInfo groupInfo : groupMan.getUserGroupInfoList(user)) {
+            if (SPONSOR_USER_GROUPS.contains(groupInfo.getUserGroupName())) {
+                sponsorGroupIds.add(groupInfo.getUserGroupId());
+            }
+        }
+        return sponsorGroupIds;
+    }
+
+    /**
+     * Removes Sponsor Approver / Sponsor Viewer entries from the Directory group ACL map.
+     */
+    private static void removeSponsorGroupsFromAcl(DataRecordACL acl, Set<Integer> sponsorGroupIds) {
+        if (sponsorGroupIds == null || sponsorGroupIds.isEmpty()) {
+            return;
+        }
+        Map<Integer, DataRecordAccess> groupAccessMap = acl.getGroupAccessMap();
+        if (groupAccessMap == null || groupAccessMap.isEmpty()) {
+            return;
+        }
+        Map<Integer, DataRecordAccess> updated = new HashMap<>(groupAccessMap);
+        for (Integer sponsorGroupId : sponsorGroupIds) {
+            updated.remove(sponsorGroupId);
+        }
+        acl.setGroupAccessMap(updated);
     }
 
     /**
