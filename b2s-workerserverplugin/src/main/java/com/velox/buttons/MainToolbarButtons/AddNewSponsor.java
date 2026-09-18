@@ -35,12 +35,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Main toolbar button: create Sponsor(s) + matching Directory(ies), then hang them under root.
+ * Main toolbar button: create Sponsor(s) under root, each with a child Directory.
  *
  * <p>Flow:
  * <ol>
  *   <li>Ask how many, then collect names (form or table)</li>
- *   <li>Create each C_Sponsor and Directory as children of root</li>
+ *   <li>Create each C_Sponsor as a child of root</li>
+ *   <li>Create each Directory as a child of that Sponsor (not under root)</li>
  *   <li>Commit, set Directory ACL, commit</li>
  * </ol>
  *
@@ -69,7 +70,7 @@ public class AddNewSponsor extends ExemplarVeloxServerPlugin<ActionMenuContext>
 
     @Override
     public String getDescription() {
-        return "Create Sponsors and matching Directories under root.";
+        return "Create Sponsors under root, each with a child Directory.";
     }
 
     @Override
@@ -117,7 +118,7 @@ public class AddNewSponsor extends ExemplarVeloxServerPlugin<ActionMenuContext>
         if (count == 1) {
             rows = List.of(clientCallback.showFieldEntryDialog(
                     "Add New Sponsor",
-                    "Enter the sponsor name. A Directory with the same name is created under root.",
+                    "Enter the sponsor name. A Directory with the same name is created under that Sponsor.",
                     formType,
                     user));
         } else {
@@ -155,8 +156,8 @@ public class AddNewSponsor extends ExemplarVeloxServerPlugin<ActionMenuContext>
     }
 
     /**
-     * Create each Sponsor + Directory directly as children of root (one Directory each),
-     * commit, then set Directory ACL.
+     * Create each Sponsor under root, then create its Directory as a child of that Sponsor
+     * via {@code sponsor.add(Child.ofType(DirectoryModel.class))} (MCP relationship pattern).
      */
     private void createSponsorsAndDirectories(List<String> sponsorNames) throws Throwable {
         DirectoryModel root = instMan.addExistingRecordOfType(
@@ -167,15 +168,17 @@ public class AddNewSponsor extends ExemplarVeloxServerPlugin<ActionMenuContext>
         List<DirectoryModel> directories = new ArrayList<>();
 
         for (String name : sponsorNames) {
+            // Sponsor hangs under root
             C_SponsorModel sponsor = root.add(Child.ofType(C_SponsorModel.class));
             sponsor.setC_SponsorName(name);
 
-            DirectoryModel directory = root.add(Child.ofType(DirectoryModel.class));
+            // Directory hangs under the Sponsor — not under root
+            DirectoryModel directory = sponsor.add(Child.ofType(DirectoryModel.class));
             directory.setDirectoryName(name);
             directories.add(directory);
         }
 
-        recMan.storeAndCommit("Created " + sponsorNames.size() + " Sponsor(s) and Directory(ies) under root");
+        recMan.storeAndCommit("Created " + sponsorNames.size() + " Sponsor(s) with child Directory(ies)");
 
         for (DirectoryModel directory : directories) {
             applyStandardDirectoryGroupAcl(directory.getDataRecord());
