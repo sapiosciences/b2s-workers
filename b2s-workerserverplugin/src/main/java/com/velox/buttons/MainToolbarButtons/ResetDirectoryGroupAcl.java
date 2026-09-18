@@ -30,9 +30,11 @@ import java.util.Set;
 /**
  * Main toolbar button that resets Directory group ACL entries system-wide.
  * <ul>
- *   <li>Sponsor Approver / Sponsor Viewer get no group permissions (users in those groups rely on
- *       per-user ACL set by {@link SponsorUserCreation})</li>
- *   <li>Every other user group gets full permissions except Owner and Grant (ACLMGMT)</li>
+ *   <li>Root Directory ({@code /}) — every group gets full access (except Owner and Grant) so
+ *       all users can reach the tree</li>
+ *   <li>All other Directories — Sponsor Approver / Sponsor Viewer get no group permissions
+ *       (those users rely on per-user ACL from {@link SponsorUserCreation}); every other group
+ *       gets full permissions except Owner and Grant (ACLMGMT)</li>
  * </ul>
  *
  * @author Connor Skevington
@@ -40,6 +42,7 @@ import java.util.Set;
 public class ResetDirectoryGroupAcl extends ExemplarVeloxServerPlugin<ActionMenuContext>
         implements ActionMenuPlugin {
 
+    private static final String ROOT_DIRECTORY_NAME = "/";
     private static final String SPONSOR_APPROVER_GROUP = "Sponsor Approver";
     private static final String SPONSOR_VIEWER_GROUP = "Sponsor Viewer";
     private static final Set<String> SPONSOR_USER_GROUPS = Set.of(
@@ -59,8 +62,8 @@ public class ResetDirectoryGroupAcl extends ExemplarVeloxServerPlugin<ActionMenu
 
     @Override
     public String getDescription() {
-        return "Reset Directory group ACL: clear sponsor groups, grant other groups full access "
-                + "(except Owner and Grant).";
+        return "Reset Directory group ACL: root stays open to all groups; other directories clear "
+                + "sponsor groups and grant other groups full access (except Owner and Grant).";
     }
 
     @Override
@@ -79,8 +82,9 @@ public class ResetDirectoryGroupAcl extends ExemplarVeloxServerPlugin<ActionMenu
             boolean confirmed = clientCallback.showOkCancelDialog(
                     "Reset Directory Group ACL",
                     "This will update group ACL on every Directory:\n"
-                            + "- Remove permissions for Sponsor Approver and Sponsor Viewer\n"
-                            + "- Grant all other groups full access except Owner and Grant\n\n"
+                            + "- Root (/): grant all groups full access except Owner and Grant\n"
+                            + "- Other directories: remove Sponsor Approver / Sponsor Viewer; "
+                            + "grant all other groups full access except Owner and Grant\n\n"
                             + "User-level ACL will not be changed. Continue?");
             if (!confirmed) {
                 throw new UserRequestedCancelServerException();
@@ -98,7 +102,8 @@ public class ResetDirectoryGroupAcl extends ExemplarVeloxServerPlugin<ActionMenu
     }
 
     /**
-     * Walks every Directory and rewrites its group ACL map per the sponsor/other-group rules.
+     * Walks every Directory and rewrites its group ACL map.
+     * Root ({@code /}) gets all groups; other directories clear sponsor groups.
      *
      * @return number of Directory records updated
      */
@@ -125,7 +130,7 @@ public class ResetDirectoryGroupAcl extends ExemplarVeloxServerPlugin<ActionMenu
         if (sponsorGroupIds.size() < SPONSOR_USER_GROUPS.size()) {
             clientCallback.displayWarning(
                     "One or both sponsor user groups were not found. Present groups will still be "
-                            + "cleared; other groups will be updated.");
+                            + "cleared on non-root directories; other groups will be updated.");
         }
 
         DataRecordAccess otherGroupAccess = buildOtherGroupAccess();
@@ -139,18 +144,20 @@ public class ResetDirectoryGroupAcl extends ExemplarVeloxServerPlugin<ActionMenu
                 acl = new DataRecordACL(directoryRecord.getRecordId());
             }
 
+            boolean isRoot = ROOT_DIRECTORY_NAME.equals(directory.getDirectoryName());
             Map<Integer, DataRecordAccess> groupAccessMap = new HashMap<>();
             for (Map.Entry<Integer, String> entry : groupIdToName.entrySet()) {
                 Integer groupId = entry.getKey();
-                if (sponsorGroupIds.contains(groupId)) {
-                    // Sponsor groups intentionally get no group ACL entry.
+                if (!isRoot && sponsorGroupIds.contains(groupId)) {
+                    // Non-root: sponsor groups intentionally get no group ACL entry.
                     continue;
                 }
                 groupAccessMap.put(groupId, otherGroupAccess);
             }
 
             acl.setGroupAccessMap(groupAccessMap);
-            directoryRecord.setDataRecordACL(acl, true, user);
+            // Root: update the Directory record only — do not cascade "everyone" down the tree.
+            directoryRecord.setDataRecordACL(acl, !isRoot, user);
         }
 
         dataRecordManager.storeAndCommit(
