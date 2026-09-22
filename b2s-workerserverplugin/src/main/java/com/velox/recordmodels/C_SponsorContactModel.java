@@ -9,7 +9,7 @@ package com.velox.recordmodels;
 import com.velox.sapio.commons.exemplar.recordmodel.annotation.ExemplarDataTypeModel;
 import com.velox.sapio.commons.exemplar.recordmodel.record.AbstractRecordModelWrapper;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
-
+import com.velox.util.time.DateRange;
 /**
  * Automatically generated class for: Sponsor Contact
  */
