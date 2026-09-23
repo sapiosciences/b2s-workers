@@ -108,11 +108,6 @@ public class CreateRequestActionMenu extends LaunchRequestCreationTemplateButton
         }
 
         recMan.storeAndCommit("Created Request under selected Project");
-        if (sponsorContact == null) {
-            displayWarning("No Sponsor Contact is set up for user \"" + user.getUsername()
-                    + "\" — the Request was created without one.");
-        }
-
         return new PluginResult(true, new DataRecordFormDirective(request.getDataRecord()));
     }
 
