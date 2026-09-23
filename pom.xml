@@ -72,6 +72,13 @@
         <version>${sapiofoundations.version}</version>
         <type>applib</type>
       </dependency>
+
+      <dependency>
+        <groupId>com.velox.internalproducts</groupId>
+        <artifactId>baselinesampleaccessioning</artifactId>
+        <version>${sapiofoundations.version}</version>
+        <type>plugin</type>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <modules>
