@@ -104,7 +104,8 @@ public class CreateRequestActionMenu extends LaunchRequestCreationTemplateButton
 
         C_SponsorContactModel sponsorContact = loadSponsorContactForCurrentUser();
         if (sponsorContact != null) {
-            request.add(Child.ref(sponsorContact));
+            // Sponsor Contact is the parent: one contact rolls up many Requests.
+            sponsorContact.add(Child.ref(request));
         }
 
         recMan.storeAndCommit("Created Request under selected Project");
