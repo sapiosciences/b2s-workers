@@ -19,10 +19,14 @@ import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.directive.DataRecordFormDirective;
 import com.velox.internalproducts.baselinesampleaccessioning.requestcreation.LaunchRequestCreationTemplateButton;
 import com.velox.recordmodels.C_SponsorContactModel;
+import com.velox.recordmodels.DirectoryModel;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Child;
+import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
+import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.recordmodels.ngs.ProjectModel;
 import com.velox.sapio.commons.recordmodels.ngs.RequestModel;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +34,9 @@ import java.util.Map;
  * Creates a Request directly under a user-selected Project without creating or opening an ELN experiment.
  */
 public class CreateRequestActionMenu extends LaunchRequestCreationTemplateButton {
+
+    private static final String REQUEST_TYPE_FIELD = com.velox.recordmodels.RequestModel.C___REQUEST_TYPE;
+    private static final String REQUEST_TYPE_SUBMISSION = "Submission";
 
     public CreateRequestActionMenu() {
         setActionMenu(true);
@@ -100,9 +107,15 @@ public class CreateRequestActionMenu extends LaunchRequestCreationTemplateButton
         ProjectModel project = instMan.addExistingRecordOfType(selectedProject, ProjectModel.class);
         RequestModel request = instMan.addNewRecord(RequestModel.class);
         request.setFields(requestFields);
+        // Always a Submission from this button; the B2S1-249 notification rule is gated on it.
+        request.setFields(Map.of(REQUEST_TYPE_FIELD, REQUEST_TYPE_SUBMISSION));
         project.add(Child.ref(request));
 
         C_SponsorContactModel sponsorContact = loadSponsorContactForCurrentUser();
+        if (sponsorContact == null) {
+            // Project Coordinator / Logistics have no Sponsor Contact of their own.
+            sponsorContact = loadOnlySponsorContactForProject(project);
+        }
         if (sponsorContact != null) {
             // Sponsor Contact is the parent: one contact rolls up many Requests.
             sponsorContact.add(Child.ref(request));
@@ -129,6 +142,24 @@ public class CreateRequestActionMenu extends LaunchRequestCreationTemplateButton
         }
         // Username is the unique handle for a Sponsor Contact, so at most one record is expected.
         return instMan.addExistingRecordOfType(sponsorContacts.get(0), C_SponsorContactModel.class);
+    }
+
+    /**
+     * Finds the Sponsor Contact for a Request raised by a B2S user (Project Coordinator / Logistics) from the
+     * Project's parent sponsor Directory.
+     *
+     * @return the Directory's Sponsor Contact when it has exactly one, otherwise null (left unlinked, no prompt)
+     */
+    private C_SponsorContactModel loadOnlySponsorContactForProject(ProjectModel project) throws Throwable {
+        relationshipMan.loadParents(List.of(project), DirectoryModel.class);
+        DirectoryModel sponsorDirectory = project.get(Parent.ofType(DirectoryModel.class));
+        if (sponsorDirectory == null) {
+            return null;
+        }
+        relationshipMan.loadChildren(sponsorDirectory, C_SponsorContactModel.class);
+        List<C_SponsorContactModel> sponsorContacts =
+                new ArrayList<>(sponsorDirectory.get(Children.ofType(C_SponsorContactModel.class)));
+        return sponsorContacts.size() == 1 ? sponsorContacts.get(0) : null;
     }
 
     @Override
