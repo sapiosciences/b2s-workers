@@ -100,9 +100,12 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     protected PluginResult run(ActionMenuContext ctx) throws Throwable {
         try {
             ProjectModel project = promptForProject();
+            logInfo("Request Shipment: project " + project.getRecordId());
 
             DirectoryModel sponsorDirectory = loadSponsorDirectory(project);
             List<C_SponsorAddressModel> addresses = loadActiveAddresses(sponsorDirectory);
+            logInfo("Request Shipment: sponsor Directory " + (sponsorDirectory == null ? "none" : sponsorDirectory.getRecordId())
+                    + ", active addresses " + addresses.size());
             if (addresses.isEmpty()) {
                 clientCallback.displayError(
                         "There are no saved shipping addresses for this sponsor. Ask B2S to add one, then try again.");
@@ -112,8 +115,10 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
 
             long dateNeeded = promptForDateNeeded();
             confirmDateWarnings(dateNeeded);
+            logInfo("Request Shipment: date accepted " + dateNeeded);
 
             List<SampleModel> readySamples = loadReadySamples(project);
+            logInfo("Request Shipment: Ready samples offered " + readySamples.size());
             if (readySamples.isEmpty()) {
                 clientCallback.displayError("There are no available (Ready) vials on this project to request.");
                 return new PluginResult(true);
@@ -132,6 +137,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             return new PluginResult(true, new DataRecordFormDirective(request.getDataRecord()));
         } catch (UserRequestedCancelServerException e) {
             // Cancelled at any step: nothing has been created.
+            logInfo("Request Shipment: ended without creating a request");
             return new PluginResult(true);
         }
     }
@@ -184,6 +190,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                 "Select the destination address", C_SponsorAddressModel.DATA_TYPE_NAME, addresses, false);
         List<C_SponsorAddressModel> selected = mapSelection(selection, addresses);
         if (selected.size() != 1) {
+            clientCallback.displayError("Select exactly one destination address.");
             throw new UserRequestedCancelServerException();
         }
         return selected.get(0);
@@ -199,10 +206,46 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                         .required(true)
                         .build())
                 .build());
-        if (input == null || !(input.getValue() instanceof Number dateNeeded)) {
+        if (input == null || input.getValue() == null) {
+            logInfo("Request Shipment: Date Needed dialog returned " + (input == null ? "no result" : "a null value"));
             throw new UserRequestedCancelServerException();
         }
-        return dateNeeded.longValue();
+        Object value = input.getValue();
+        logInfo("Request Shipment: Date Needed dialog returned " + value.getClass().getName() + " = " + value);
+        Long dateNeeded = toEpochMillis(value);
+        if (dateNeeded == null) {
+            // Don't end silently: say what came back so it can be fixed.
+            clientCallback.displayError("Could not read the Date Needed value (" + value.getClass().getName()
+                    + ": " + value + "). Nothing was created.");
+            throw new UserRequestedCancelServerException();
+        }
+        return dateNeeded;
+    }
+
+    /** The date dialog's value type isn't fixed by the API, so accept the common forms. */
+    private static Long toEpochMillis(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof java.util.Date date) {
+            return date.getTime();
+        }
+        if (value instanceof java.time.Instant instant) {
+            return instant.toEpochMilli();
+        }
+        if (value instanceof java.time.LocalDate localDate) {
+            return localDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
+        if (value instanceof java.time.LocalDateTime localDateTime) {
+            return localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
+        if (value instanceof ZonedDateTime zonedDateTime) {
+            return zonedDateTime.toInstant().toEpochMilli();
+        }
+        if (value instanceof String text && StringUtils.isNumeric(text.trim())) {
+            return Long.parseLong(text.trim());
+        }
+        return null;
     }
 
     /** Less than 48 hours ahead, or a weekend: warn, but let the sponsor continue (B2S SOP exceptions). */
