@@ -399,6 +399,8 @@ public class AddShipmentBox extends DefaultFormToolbarPlugin {
         shipmentBox.setField(C_ShipmentBoxModel.DATA_RECORD_NAME, storageUnitId);
         shipmentBox.setC_Status(SHIPMENT_STATUS_PENDING);
         shipmentBox.setC_StorageUnit(storageUnit.getRecordId());
+        // A side link displays only as "Link", so also keep the readable Storage Unit ID.
+        shipmentBox.setC_StorageUnitId(storageUnitId);
         request.add(Child.ref(shipmentBox));
         return storageUnit;
     }

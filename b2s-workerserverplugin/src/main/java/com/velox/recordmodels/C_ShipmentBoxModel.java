@@ -9,7 +9,7 @@ package com.velox.recordmodels;
 import com.velox.sapio.commons.exemplar.recordmodel.annotation.ExemplarDataTypeModel;
 import com.velox.sapio.commons.exemplar.recordmodel.record.AbstractRecordModelWrapper;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
-
+import com.velox.util.time.DateRange;
 /**
  * Automatically generated class for: Shipment Box
  */
@@ -92,6 +92,15 @@ public class C_ShipmentBoxModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: No Description
 	 */
 	public static final String C___STORAGE_UNIT = "C_StorageUnit";
+
+	/**
+	 * <b>Data Field Name</b>: C_StorageUnitId<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Storage Unit Id<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___STORAGE_UNIT_ID = "C_StorageUnitId";
 
 	/**
 	 * <b>Data Field Name</b>: CreatedBy<br/>
@@ -389,6 +398,36 @@ public class C_ShipmentBoxModel extends AbstractRecordModelWrapper {
 	 */
 	public void setC_StorageUnit(Long value) {
 		setField(C___STORAGE_UNIT, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___STORAGE_UNIT_ID} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_StorageUnitId<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Storage Unit Id<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_StorageUnitId" field
+	 */
+	public String getC_StorageUnitId() {
+		return getField(C___STORAGE_UNIT_ID);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___STORAGE_UNIT_ID} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_StorageUnitId<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Storage Unit Id<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_StorageUnitId" field
+	 */
+	public void setC_StorageUnitId(String value) {
+		setField(C___STORAGE_UNIT_ID, value);
 	}
 	
 	/**
