@@ -9,7 +9,7 @@ package com.velox.recordmodels;
 import com.velox.sapio.commons.exemplar.recordmodel.annotation.ExemplarDataTypeModel;
 import com.velox.sapio.commons.exemplar.recordmodel.record.AbstractRecordModelWrapper;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
-
+import com.velox.util.time.DateRange;
 /**
  * Automatically generated class for: Request
  */
@@ -56,6 +56,33 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: No Description
 	 */
 	public static final String C___COMMENTS = "C_Comments";
+
+	/**
+	 * <b>Data Field Name</b>: C_DateNeeded<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Needed<br/>
+	 * <br/>
+	 * <b>Description</b>: Date the sponsor needs the shipment to arrive. Dates within 48 hours or on a weekend show a warning when the request is raised.
+	 */
+	public static final String C___DATE_NEEDED = "C_DateNeeded";
+
+	/**
+	 * <b>Data Field Name</b>: C_Destination<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Destination<br/>
+	 * <br/>
+	 * <b>Description</b>: Saved sponsor address the shipment goes to.
+	 */
+	public static final String C___DESTINATION = "C_Destination";
+
+	/**
+	 * <b>Data Field Name</b>: C_DestinationAddress<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Destination Address<br/>
+	 * <br/>
+	 * <b>Description</b>: Full destination address copied from the saved address when the request was submitted, so the request keeps it even if the saved address changes later.
+	 */
+	public static final String C___DESTINATION_ADDRESS = "C_DestinationAddress";
 
 	/**
 	 * <b>Data Field Name</b>: C_ExpectedArrivalDate<br/>
@@ -584,6 +611,96 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	 */
 	public void setC_Comments(String value) {
 		setField(C___COMMENTS, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___DATE_NEEDED} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DateNeeded<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Needed<br/>
+	 * <br/>
+	 * <b>Description</b>: Date the sponsor needs the shipment to arrive. Dates within 48 hours or on a weekend show a warning when the request is raised.
+	 * 
+	 * @return the value stored on the "C_DateNeeded" field
+	 */
+	public Long getC_DateNeeded() {
+		return getField(C___DATE_NEEDED);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___DATE_NEEDED} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DateNeeded<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Needed<br/>
+	 * <br/>
+	 * <b>Description</b>: Date the sponsor needs the shipment to arrive. Dates within 48 hours or on a weekend show a warning when the request is raised.
+	 * 
+	 * @param value The value to set on the "C_DateNeeded" field
+	 */
+	public void setC_DateNeeded(Long value) {
+		setField(C___DATE_NEEDED, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___DESTINATION} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Destination<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Destination<br/>
+	 * <br/>
+	 * <b>Description</b>: Saved sponsor address the shipment goes to.
+	 * 
+	 * @return the value stored on the "C_Destination" field
+	 */
+	public Long getC_Destination() {
+		return getField(C___DESTINATION);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___DESTINATION} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_Destination<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Destination<br/>
+	 * <br/>
+	 * <b>Description</b>: Saved sponsor address the shipment goes to.
+	 * 
+	 * @param value The value to set on the "C_Destination" field
+	 */
+	public void setC_Destination(Long value) {
+		setField(C___DESTINATION, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___DESTINATION_ADDRESS} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DestinationAddress<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Destination Address<br/>
+	 * <br/>
+	 * <b>Description</b>: Full destination address copied from the saved address when the request was submitted, so the request keeps it even if the saved address changes later.
+	 * 
+	 * @return the value stored on the "C_DestinationAddress" field
+	 */
+	public String getC_DestinationAddress() {
+		return getField(C___DESTINATION_ADDRESS);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___DESTINATION_ADDRESS} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DestinationAddress<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Destination Address<br/>
+	 * <br/>
+	 * <b>Description</b>: Full destination address copied from the saved address when the request was submitted, so the request keeps it even if the saved address changes later.
+	 * 
+	 * @param value The value to set on the "C_DestinationAddress" field
+	 */
+	public void setC_DestinationAddress(String value) {
+		setField(C___DESTINATION_ADDRESS, value);
 	}
 	
 	/**
