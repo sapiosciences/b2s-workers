@@ -27,11 +27,13 @@ import com.velox.api.user.UserGroupManager;
 import com.velox.api.user.VeloxUserManager;
 import com.velox.api.util.InputDialogResult;
 import com.velox.api.util.PopupType;
+import com.velox.recordmodels.C_SponsorContactModel;
 import com.velox.recordmodels.C_SponsorModel;
 import com.velox.recordmodels.DirectoryModel;
 import com.velox.recordmodels.VeloxUserModel;
 import com.velox.sapio.commons.exemplar.definition.form.FormBuilder;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.ExemplarVeloxServerPlugin;
+import com.velox.sapio.commons.exemplar.recordmodel.relationship.Child;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
@@ -50,7 +52,8 @@ import java.util.Set;
  *   <li>Ask how many users to create</li>
  *   <li>If 1 → show a form; if 2+ → show a table with that many rows</li>
  *   <li>Collect only email, sponsor, and user groups (password is preset)</li>
- *   <li>Create each user, put them in the chosen groups, and update Directory ACL</li>
+ *   <li>Create each user, put them in the chosen groups, create their Sponsor Contact,
+ *       and update Directory ACL</li>
  * </ol>
  *
  * <p>Sponsor users get Directory access as individuals (user ACL), not through the
@@ -352,7 +355,8 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
      *
      * <ul>
      *   <li>Blank sponsor → create the user, but leave Directory ACL alone</li>
-     *   <li>Matching Directory (name = sponsor) → grant this user access</li>
+     *   <li>Matching Directory (name = sponsor) → create the user's Sponsor Contact under it
+     *       (if missing), then grant this user access</li>
      *   <li>Every other Directory → remove this user from the user ACL map</li>
      *   <li>Group ACL → only remove Sponsor Approver / Viewer; leave other groups alone</li>
      * </ul>
@@ -391,6 +395,9 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
             return;
         }
 
+        // Create the contact before the ACL push below, so the recursive ACL covers it too.
+        ensureSponsorContact(username, sponsorName, matchingDirectory);
+
         Set<Integer> sponsorGroupIds = resolveSponsorGroupIds();
         DataRecordAccess matchingDirectoryAccess = buildSponsorDirectoryAccess(selectedGroupsRaw);
         Long matchingRecordId = matchingDirectory.getRecordId();
@@ -428,6 +435,30 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
                 "Updated Directory ACL for sponsor user " + username,
                 clientCallback.getClientCallbackRMI(),
                 user);
+    }
+
+    /**
+     * Makes sure the new user has a Sponsor Contact under their sponsor's Directory.
+     * Requests (B2S1-247 / B2S1-243) and shipped notices (B2S1-245) find the contact by
+     * {@link C_SponsorContactModel#C___USERNAME}, so skip creation if one already exists.
+     */
+    private void ensureSponsorContact(String username, String sponsorName, DirectoryModel sponsorDirectory)
+            throws Throwable {
+        List<DataRecord> existingContacts = dataRecordManager.queryDataRecords(
+                C_SponsorContactModel.DATA_TYPE_NAME,
+                C_SponsorContactModel.C___USERNAME,
+                List.of(username),
+                user);
+        if (existingContacts != null && !existingContacts.isEmpty()) {
+            return;
+        }
+
+        C_SponsorContactModel contact = sponsorDirectory.add(Child.ofType(C_SponsorContactModel.class));
+        contact.setC_Username(username);
+        // Username is the email address.
+        contact.setC_EmailAddress(username);
+        contact.setC_SponsorName(sponsorName);
+        recMan.storeAndCommit("Created Sponsor Contact for sponsor user " + username);
     }
 
     /**

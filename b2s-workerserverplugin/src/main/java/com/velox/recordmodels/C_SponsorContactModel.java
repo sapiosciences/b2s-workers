@@ -67,6 +67,15 @@ public class C_SponsorContactModel extends AbstractRecordModelWrapper {
 	public static final String C___PHONE = "C_Phone";
 
 	/**
+	 * <b>Data Field Name</b>: C_SponsorName<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Sponsor Name<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___SPONSOR_NAME = "C_SponsorName";
+
+	/**
 	 * <b>Data Field Name</b>: C_Username<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Username<br/>
@@ -281,6 +290,36 @@ public class C_SponsorContactModel extends AbstractRecordModelWrapper {
 	 */
 	public void setC_Phone(String value) {
 		setField(C___PHONE, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___SPONSOR_NAME} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_SponsorName<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Sponsor Name<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_SponsorName" field
+	 */
+	public String getC_SponsorName() {
+		return getField(C___SPONSOR_NAME);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___SPONSOR_NAME} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_SponsorName<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Sponsor Name<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_SponsorName" field
+	 */
+	public void setC_SponsorName(String value) {
+		setField(C___SPONSOR_NAME, value);
 	}
 	
 	/**
