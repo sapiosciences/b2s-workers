@@ -12,6 +12,7 @@ import com.velox.api.clientcallback.DataRecordSelectionCriteria;
 import com.velox.api.datarecord.DataRecord;
 import com.velox.api.datatype.DataTypeDefinition;
 import com.velox.api.datatype.TemporaryDataType;
+import com.velox.api.datatype.datatypelayout.DataTypeLayout;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
@@ -32,6 +33,7 @@ import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.exemplar.recordmodel.util.RecordModelUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,13 +63,8 @@ public class CreateSubmission extends ExemplarVeloxServerPlugin<ActionMenuContex
     // Registered in Sapio but not yet received.
     private static final String SAMPLE_LOGGED = "Logged";
 
-    // Only the fields a Submission captures; the number of samples comes from the selection when pre-registered.
-    private static final List<String> SUBMISSION_FIELDS = List.of(
-            RequestModel.C___EXPECTED_ARRIVAL_DATE,
-            RequestModel.C___TRACKING_NUMBER,
-            RequestModel.C___STORAGE_TEMP,
-            RequestModel.C___SAMPLE_NAME_TYPE,
-            RequestModel.C___COMMENTS);
+    // Request layout in Data Designer that drives the submission details popup.
+    private static final String SPONSOR_CREATION_LAYOUT = "Sponsor Creation Layout";
 
     @Override
     public String getLine1Text() {
@@ -122,13 +119,13 @@ public class CreateSubmission extends ExemplarVeloxServerPlugin<ActionMenuContex
                 }
             }
 
-            Map<String, Object> details = promptForDetails(preRegistered);
-
+            // Ask for shipment details (arrival date, tracking, etc.), then create the Request.
+            Map<String, Object> details = promptForDetails(selectedSamples);
             RequestModel request = createSubmission(project, details, selectedSamples);
             recMan.storeAndCommit("Created submission under Project " + project.getRecordId());
             return new PluginResult(true, new DataRecordFormDirective(request.getDataRecord()));
         } catch (UserRequestedCancelServerException e) {
-            // Cancelled at any step: nothing has been created.
+            // User hit Cancel somewhere — leave nothing behind.
             return new PluginResult(true);
         }
     }
@@ -215,49 +212,71 @@ public class CreateSubmission extends ExemplarVeloxServerPlugin<ActionMenuContex
     }
 
     /**
-     * The submission fields from the Request definition. Number of Samples is asked for only when the samples aren't
-     * pre-registered. Expected Arrival Date (and Number of Samples when asked) are required, since B2S1-249's
-     * notification only fires once they're filled in.
+     * Shows the submission details popup using Request's "Sponsor Creation Layout" from Data Designer.
+     * Number of Samples and Expected Arrival Date must be filled in; everything else on the layout is optional.
+     * If samples were already picked, Number of Samples is pre-filled with that count.
      */
-    private Map<String, Object> promptForDetails(boolean preRegistered) throws Throwable {
-        DataTypeDefinition requestDefinition =
-                dataMgmtServer.getDataTypeManager(user).getDataTypeDefinition(RequestModel.DATA_TYPE_NAME);
-        TemporaryDataType form = requestDefinition.getTemporaryDataType(user);
+    private Map<String, Object> promptForDetails(List<SampleModel> selectedSamples) throws Throwable {
+        TemporaryDataType form = loadSponsorCreationForm();
 
-        List<String> fieldNames = new ArrayList<>();
-        if (!preRegistered) {
-            fieldNames.add(RequestModel.NUMBER_OF_SAMPLES);
+        // Force these two required in the popup even if Data Designer left them optional.
+        VeloxFieldDefinition<?> numberOfSamples = form.getVeloxFieldDefinition(RequestModel.NUMBER_OF_SAMPLES);
+        if (numberOfSamples != null) {
+            numberOfSamples.setRequired(true);
         }
-        fieldNames.addAll(SUBMISSION_FIELDS);
-        List<VeloxFieldDefinition<?>> fields = new ArrayList<>();
-        for (String fieldName : fieldNames) {
-            VeloxFieldDefinition<?> field = form.getVeloxFieldDefinition(fieldName);
-            if (field != null) {
-                fields.add(field);
-            }
+        VeloxFieldDefinition<?> expectedArrival = form.getVeloxFieldDefinition(RequestModel.C___EXPECTED_ARRIVAL_DATE);
+        if (expectedArrival != null) {
+            expectedArrival.setRequired(true);
         }
-        form.setVeloxFieldDefinitionList(fields);
 
-        while (true) {
-            Map<String, Object> details = clientCallback.showFieldEntryDialog(
-                    "Create Submission", "Enter the submission details", form, user);
-            if (details == null) {
-                throw new UserRequestedCancelServerException();
-            }
-            List<String> missing = new ArrayList<>();
-            if (details.get(RequestModel.C___EXPECTED_ARRIVAL_DATE) == null) {
-                missing.add("Expected Arrival Date");
-            }
-            if (!preRegistered && !(details.get(RequestModel.NUMBER_OF_SAMPLES) instanceof Number)) {
-                missing.add("Number of Samples");
-            }
-            if (missing.isEmpty()) {
-                return details;
-            }
-            clientCallback.displayError("Please fill in: " + String.join(", ", missing) + ".");
+        // When samples were selected up front, start Number of Samples at that count.
+        Map<String, Object> defaults = new HashMap<>();
+        if (!selectedSamples.isEmpty()) {
+            defaults.put(RequestModel.NUMBER_OF_SAMPLES, (long) selectedSamples.size());
         }
+
+        Map<String, Object> details = clientCallback.showFieldEntryDialog(
+                "Create Submission", "Enter the submission details", form, defaults, user);
+        if (details == null) {
+            throw new UserRequestedCancelServerException();
+        }
+        return details;
     }
 
+    /**
+     * Pulls the "Sponsor Creation Layout" off the Request data type so the popup matches Data Designer.
+     * Tries the layout's internal name first, then its display name, in case they differ.
+     */
+    private TemporaryDataType loadSponsorCreationForm() throws Throwable {
+        DataTypeDefinition requestDefinition =
+                dataMgmtServer.getDataTypeManager(user).getDataTypeDefinition(RequestModel.DATA_TYPE_NAME);
+
+        // Usual case: layout name matches exactly.
+        TemporaryDataType form = requestDefinition.getTemporaryDataType(SPONSOR_CREATION_LAYOUT, user);
+        if (form != null) {
+            return form;
+        }
+
+        // Fallback: user may have given us the display name shown in Data Designer.
+        List<DataTypeLayout> layouts = requestDefinition.getDataTypeLayoutList(user);
+        if (layouts != null) {
+            for (DataTypeLayout layout : layouts) {
+                if (SPONSOR_CREATION_LAYOUT.equals(layout.getLayoutName())
+                        || SPONSOR_CREATION_LAYOUT.equals(layout.getDisplayName())) {
+                    form = requestDefinition.getTemporaryDataType(layout.getLayoutName(), user);
+                    if (form != null) {
+                        return form;
+                    }
+                }
+            }
+        }
+
+        clientCallback.displayError("Request layout \"" + SPONSOR_CREATION_LAYOUT
+                + "\" was not found. Check the layout name in Data Designer and try again.");
+        throw new UserRequestedCancelServerException();
+    }
+
+    /** Builds the Submission Request from the form answers and wires it to the project / samples / sponsor. */
     private RequestModel createSubmission(ProjectModel project, Map<String, Object> details,
                                           List<SampleModel> selectedSamples) throws Throwable {
         RequestModel request = instMan.addNewRecord(RequestModel.class);
@@ -266,8 +285,10 @@ public class CreateSubmission extends ExemplarVeloxServerPlugin<ActionMenuContex
         request.setC_RequisitionStatus(REQUISITION_STATUS_SUBMITTED);
         request.setRequestDate(System.currentTimeMillis());
         if (selectedSamples.isEmpty()) {
+            // Samples will be provided later via a manifest spreadsheet.
             request.setAddSamplesMethod(ADD_SAMPLES_METHOD_MANIFEST);
         } else {
+            // Samples already exist in Sapio — attach the ones the user picked.
             request.setAddSamplesMethod(ADD_SAMPLES_METHOD_SELECT_EXISTING);
             request.setNumberOfSamples((long) selectedSamples.size());
             for (SampleModel sample : selectedSamples) {
