@@ -1,0 +1,87 @@
+/*
+ * Copyright (C) 2005 - Sapio Sciences <support@sapiosciences.com>
+ * ====================================================================
+ * This software is the property of Sapio Sciences.
+ * ====================================================================
+ */
+package com.velox.onSave;
+
+import com.velox.api.datarecord.DataRecord;
+import com.velox.api.plugin.PluginResult;
+import com.velox.api.plugin.invocation.context.OnSaveContext;
+import com.velox.managers.ShipmentRequisitionManager;
+import com.velox.recordmodels.C_ShipmentBoxModel;
+import com.velox.recordmodels.RequestModel;
+import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultOnSavePlugin;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * B2S1-244: validate / enforce requisition status transitions on Request save.
+ */
+public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
+
+    // Requests from the current save whose Requisition Status just changed — filled in by shouldRun()
+    private List<RequestModel> changedRequests;
+
+    @Override
+    protected boolean shouldRun(OnSaveContext ctx) throws Throwable {
+        List<DataRecord> requestRecords = new ArrayList<>();
+        for (DataRecord record : ctx.getDataRecordList()) {
+            if (!RequestModel.DATA_TYPE_NAME.equals(record.getDataTypeName())
+                    || !record.isChanged(RequestModel.C___REQUISITION_STATUS)) {
+                continue;
+            }
+            if (!ShipmentRequisitionManager.REQUEST_TYPE_SHIPMENT_REQUISITION.equals(
+                    record.getStringVal(RequestModel.C___REQUEST_TYPE, user))) {
+                continue;
+            }
+            requestRecords.add(record);
+        }
+        if (requestRecords.isEmpty()) {
+            return false;
+        }
+        changedRequests = instMan.addExistingRecordsOfType(requestRecords, RequestModel.class);
+        return true;
+    }
+
+    @Override
+    protected PluginResult run(OnSaveContext ctx) throws Throwable {
+        String groupName = user.getUserGroup().getGroupName();
+        if (ShipmentRequisitionManager.GROUP_SAPIO_ADMIN.equals(groupName)) {
+            return new PluginResult(true);
+        }
+
+        ShipmentRequisitionManager requisitionMan = new ShipmentRequisitionManager();
+        relationshipMan.loadChildren(changedRequests, C_ShipmentBoxModel.class);
+
+        List<String> errors = new ArrayList<>();
+        for (RequestModel request : changedRequests) {
+            Object lastSaved = request.getDataRecord().getLastSavedValue(RequestModel.C___REQUISITION_STATUS);
+            String previousStatus = lastSaved == null ? null : lastSaved.toString();
+            String newStatus = request.getC_RequisitionStatus();
+            String error = requisitionMan.validateTransition(request, previousStatus, newStatus, groupName);
+            if (error != null) {
+                errors.add(error);
+                continue;
+            }
+            if (ShipmentRequisitionManager.STATUS_DENIED.equals(newStatus)
+                    && StringUtils.isBlank(request.getC_DenialReason())) {
+                String denialError = requisitionMan.ensureDenialReason(
+                        request, clientCallback, user, dataMgmtServer);
+                if (denialError != null) {
+                    errors.add(denialError);
+                }
+            }
+        }
+        if (!errors.isEmpty()) {
+            if (clientCallback != null) {
+                clientCallback.displayError(String.join("\n", errors));
+            }
+            return new PluginResult(false);
+        }
+        return new PluginResult(true);
+    }
+}
