@@ -9,7 +9,7 @@ package com.velox.recordmodels;
 import com.velox.sapio.commons.exemplar.recordmodel.annotation.ExemplarDataTypeModel;
 import com.velox.sapio.commons.exemplar.recordmodel.record.AbstractRecordModelWrapper;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
-import com.velox.util.time.DateRange;
+
 /**
  * Automatically generated class for: Request
  */
@@ -49,6 +49,15 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	public static final String ARE_SAMPLES_LIBRARIES = "AreSamplesLibraries";
 
 	/**
+	 * <b>Data Field Name</b>: C_ApprovalNotified<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Approval Notified<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___APPROVAL_NOTIFIED = "C_ApprovalNotified";
+
+	/**
 	 * <b>Data Field Name</b>: C_Comments<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Comments<br/>
@@ -65,6 +74,15 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: Date the sponsor needs the shipment to arrive. Dates within 48 hours or on a weekend show a warning when the request is raised.
 	 */
 	public static final String C___DATE_NEEDED = "C_DateNeeded";
+
+	/**
+	 * <b>Data Field Name</b>: C_DenialReason<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Denial Reason<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___DENIAL_REASON = "C_DenialReason";
 
 	/**
 	 * <b>Data Field Name</b>: C_Destination<br/>
@@ -128,6 +146,15 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: No Description
 	 */
 	public static final String C___SAMPLE_NAME_TYPE = "C_SampleNameType";
+
+	/**
+	 * <b>Data Field Name</b>: C_ShippedNotified<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Shipped Notified<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___SHIPPED_NOTIFIED = "C_ShippedNotified";
 
 	/**
 	 * <b>Data Field Name</b>: C_StorageTemp<br/>
@@ -584,6 +611,36 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #C___APPROVAL_NOTIFIED} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ApprovalNotified<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Approval Notified<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_ApprovalNotified" field
+	 */
+	public Boolean getC_ApprovalNotified() {
+		return getField(C___APPROVAL_NOTIFIED);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___APPROVAL_NOTIFIED} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ApprovalNotified<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Approval Notified<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_ApprovalNotified" field
+	 */
+	public void setC_ApprovalNotified(Boolean value) {
+		setField(C___APPROVAL_NOTIFIED, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #C___COMMENTS} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: C_Comments<br/>
@@ -641,6 +698,36 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	 */
 	public void setC_DateNeeded(Long value) {
 		setField(C___DATE_NEEDED, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___DENIAL_REASON} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DenialReason<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Denial Reason<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_DenialReason" field
+	 */
+	public String getC_DenialReason() {
+		return getField(C___DENIAL_REASON);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___DENIAL_REASON} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DenialReason<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Denial Reason<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_DenialReason" field
+	 */
+	public void setC_DenialReason(String value) {
+		setField(C___DENIAL_REASON, value);
 	}
 	
 	/**
@@ -851,6 +938,36 @@ public class RequestModel extends AbstractRecordModelWrapper {
 	 */
 	public void setC_SampleNameType(String value) {
 		setField(C___SAMPLE_NAME_TYPE, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___SHIPPED_NOTIFIED} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ShippedNotified<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Shipped Notified<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_ShippedNotified" field
+	 */
+	public Boolean getC_ShippedNotified() {
+		return getField(C___SHIPPED_NOTIFIED);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___SHIPPED_NOTIFIED} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ShippedNotified<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Shipped Notified<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_ShippedNotified" field
+	 */
+	public void setC_ShippedNotified(Boolean value) {
+		setField(C___SHIPPED_NOTIFIED, value);
 	}
 	
 	/**
