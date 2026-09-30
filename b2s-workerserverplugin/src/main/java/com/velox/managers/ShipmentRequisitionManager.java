@@ -14,6 +14,7 @@ import com.velox.api.util.ClientCallbackOperations;
 import com.velox.api.util.InputDialogResult;
 import com.velox.recordmodels.C_ShipmentBoxModel;
 import com.velox.recordmodels.RequestModel;
+import com.velox.sapio.commons.exemplar.context.ExemplarContext;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import org.apache.commons.lang3.StringUtils;
 
@@ -45,20 +46,30 @@ public class ShipmentRequisitionManager {
     public static final String BOX_STATUS_IN_TRANSIT = "In Transit";
     public static final String BOX_STATUS_DELIVERED = "Delivered";
 
-    public static final String DENIAL_REASON_REQUIRED_MESSAGE =
+    private static final String DENIAL_REASON_REQUIRED_MESSAGE =
             "Please choose a Denial Reason before denying a request";
 
     private static final Set<String> LOGISTICS_OR_COORDINATOR =
             Set.of(GROUP_LOGISTICS, GROUP_PROJECT_COORDINATOR);
 
+    private final User user;
+    private final ClientCallbackOperations clientCallback;
+    private final DataMgmtServer dataMgmtServer;
+
+    public ShipmentRequisitionManager(ExemplarContext exemplarContext) {
+        user = exemplarContext.getUser();
+        clientCallback = exemplarContext.getClientCallback();
+        dataMgmtServer = exemplarContext.getDataMgmtServer();
+    }
+
     /**
      * Validates a requisition status change for the given session group.
-     * Does not prompt for or enforce Denial Reason — call {@link #ensureDenialReason} after this passes.
+     * For Denied, prompts for {@code C_DenialReason} when blank.
      *
      * @return an error message if the change is not allowed, or null if it is legal
      */
     public String validateTransition(RequestModel request, String previousStatus, String newStatus,
-            String groupName) {
+            String groupName) throws Throwable {
         String from = normalizeStatus(previousStatus);
         String to = normalizeStatus(newStatus);
 
@@ -73,10 +84,18 @@ public class ShipmentRequisitionManager {
         } else if ((STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from))
                 && STATUS_APPROVED.equals(to)) {
             allowed = GROUP_SPONSOR_APPROVER.equals(groupName);
-        // Submitted / Under Review → Denied: Sponsor Approver
+        // Submitted / Under Review → Denied: Sponsor Approver, with a denial reason
         } else if ((STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from))
                 && STATUS_DENIED.equals(to)) {
-            allowed = GROUP_SPONSOR_APPROVER.equals(groupName);
+            if (!GROUP_SPONSOR_APPROVER.equals(groupName)) {
+                allowed = false;
+            } else {
+                String denialError = ensureDenialReason(request);
+                if (denialError != null) {
+                    return denialError;
+                }
+                allowed = true;
+            }
         // Approved → In Fulfilment: Logistics, Project Coordinator
         } else if (STATUS_APPROVED.equals(from) && STATUS_IN_FULFILMENT.equals(to)) {
             allowed = LOGISTICS_OR_COORDINATOR.contains(groupName);
@@ -98,25 +117,21 @@ public class ShipmentRequisitionManager {
         if (allowed) {
             return null;
         }
-        String requestId = StringUtils.defaultIfBlank(request.getRequestId(), RequestModel.DATA_TYPE_NAME);
-        String fromDisplay = from.isEmpty() ? "(blank)" : from;
-        String toDisplay = to.isEmpty() ? "(blank)" : to;
-        return requestId + ": " + groupName + " cannot move a request from " + fromDisplay + " to " + toDisplay;
+        return formatTransitionError(request, groupName, from, to);
     }
 
     /**
      * If {@code C_DenialReason} is blank, prompts with the Request field definition so the user can
      * select or type a reason, then writes it onto the request.
      *
-     * @return {@link #DENIAL_REASON_REQUIRED_MESSAGE} if the user cancels or leaves it blank; null if set
+     * @return an error message if the user cancels or leaves it blank; null if set
      */
-    public String ensureDenialReason(RequestModel request, ClientCallbackOperations clientCallback,
-            User user, DataMgmtServer dataMgmtServer) throws Throwable {
+    private String ensureDenialReason(RequestModel request) throws Throwable {
         if (StringUtils.isNotBlank(request.getC_DenialReason())) {
             return null;
         }
+        String requestId = StringUtils.defaultIfBlank(request.getRequestId(), RequestModel.DATA_TYPE_NAME);
         if (clientCallback == null) {
-            String requestId = StringUtils.defaultIfBlank(request.getRequestId(), RequestModel.DATA_TYPE_NAME);
             return requestId + ": " + DENIAL_REASON_REQUIRED_MESSAGE;
         }
 
@@ -128,13 +143,11 @@ public class ShipmentRequisitionManager {
 
         InputDialogResult input = clientCallback.showInputDialog(InputDialogCriteria.builder()
                 .title("Denial Reason")
-                .message("Choose a Denial Reason for " + StringUtils.defaultIfBlank(
-                        request.getRequestId(), "this request") + ".")
+                .message("Choose a Denial Reason for " + requestId + ".")
                 .fieldDefinition(denialReasonField)
                 .build());
         if (input == null || input.getValue() == null
                 || StringUtils.isBlank(input.getValue().toString())) {
-            String requestId = StringUtils.defaultIfBlank(request.getRequestId(), RequestModel.DATA_TYPE_NAME);
             return requestId + ": " + DENIAL_REASON_REQUIRED_MESSAGE;
         }
 
@@ -174,6 +187,13 @@ public class ShipmentRequisitionManager {
             return true;
         }
         return false;
+    }
+
+    private static String formatTransitionError(RequestModel request, String groupName, String from, String to) {
+        String requestId = StringUtils.defaultIfBlank(request.getRequestId(), RequestModel.DATA_TYPE_NAME);
+        String fromDisplay = from.isEmpty() ? "(blank)" : from;
+        String toDisplay = to.isEmpty() ? "(blank)" : to;
+        return requestId + ": " + groupName + " cannot move a request from " + fromDisplay + " to " + toDisplay;
     }
 
     private static String normalizeStatus(String value) {

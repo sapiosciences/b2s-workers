@@ -13,7 +13,6 @@ import com.velox.managers.ShipmentRequisitionManager;
 import com.velox.recordmodels.C_ShipmentBoxModel;
 import com.velox.recordmodels.RequestModel;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultOnSavePlugin;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,26 +53,17 @@ public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
             return new PluginResult(true);
         }
 
-        ShipmentRequisitionManager requisitionMan = new ShipmentRequisitionManager();
+        ShipmentRequisitionManager requisitionMan = new ShipmentRequisitionManager(exemplarContext);
         relationshipMan.loadChildren(changedRequests, C_ShipmentBoxModel.class);
 
         List<String> errors = new ArrayList<>();
         for (RequestModel request : changedRequests) {
             Object lastSaved = request.getDataRecord().getLastSavedValue(RequestModel.C___REQUISITION_STATUS);
             String previousStatus = lastSaved == null ? null : lastSaved.toString();
-            String newStatus = request.getC_RequisitionStatus();
-            String error = requisitionMan.validateTransition(request, previousStatus, newStatus, groupName);
+            String error = requisitionMan.validateTransition(
+                    request, previousStatus, request.getC_RequisitionStatus(), groupName);
             if (error != null) {
                 errors.add(error);
-                continue;
-            }
-            if (ShipmentRequisitionManager.STATUS_DENIED.equals(newStatus)
-                    && StringUtils.isBlank(request.getC_DenialReason())) {
-                String denialError = requisitionMan.ensureDenialReason(
-                        request, clientCallback, user, dataMgmtServer);
-                if (denialError != null) {
-                    errors.add(denialError);
-                }
             }
         }
         if (!errors.isEmpty()) {
