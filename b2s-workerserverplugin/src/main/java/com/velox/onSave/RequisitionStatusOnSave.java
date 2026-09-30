@@ -49,21 +49,30 @@ public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
     @Override
     protected PluginResult run(OnSaveContext ctx) throws Throwable {
         String groupName = user.getUserGroup().getGroupName();
-        if (ShipmentRequisitionManager.GROUP_SAPIO_ADMIN.equals(groupName)) {
-            return new PluginResult(true);
+        ShipmentRequisitionManager requisitionMan = new ShipmentRequisitionManager(exemplarContext);
+        boolean isAdmin = ShipmentRequisitionManager.GROUP_SAPIO_ADMIN.equals(groupName);
+
+        if (!isAdmin) {
+            relationshipMan.loadChildren(changedRequests, C_ShipmentBoxModel.class);
         }
 
-        ShipmentRequisitionManager requisitionMan = new ShipmentRequisitionManager(exemplarContext);
-        relationshipMan.loadChildren(changedRequests, C_ShipmentBoxModel.class);
-
         List<String> errors = new ArrayList<>();
+        List<RequestModel> submittedRequests = new ArrayList<>();
+        List<RequestModel> shippedRequests = new ArrayList<>();
         for (RequestModel request : changedRequests) {
-            Object lastSaved = request.getDataRecord().getLastSavedValue(RequestModel.C___REQUISITION_STATUS);
-            String previousStatus = lastSaved == null ? null : lastSaved.toString();
-            String error = requisitionMan.validateTransition(
-                    request, previousStatus, request.getC_RequisitionStatus(), groupName);
-            if (error != null) {
-                errors.add(error);
+            if (!isAdmin) {
+                Object lastSaved = request.getDataRecord().getLastSavedValue(RequestModel.C___REQUISITION_STATUS);
+                String previousStatus = lastSaved == null ? null : lastSaved.toString();
+                String error = requisitionMan.validateTransition(
+                        request, previousStatus, request.getC_RequisitionStatus(), groupName);
+                if (error != null) {
+                    errors.add(error);
+                }
+            }
+            if (ShipmentRequisitionManager.STATUS_SUBMITTED.equals(request.getC_RequisitionStatus())) {
+                submittedRequests.add(request);
+            } else if (ShipmentRequisitionManager.STATUS_SHIPPED.equals(request.getC_RequisitionStatus())) {
+                shippedRequests.add(request);
             }
         }
         if (!errors.isEmpty()) {
@@ -71,6 +80,14 @@ public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
                 clientCallback.displayError(String.join("\n", errors));
             }
             return new PluginResult(false);
+        }
+
+        // Only after every transition in this save has been accepted.
+        if (!submittedRequests.isEmpty()) {
+            requisitionMan.notifySubmitted(submittedRequests);
+        }
+        if (!shippedRequests.isEmpty()) {
+            requisitionMan.notifyShipped(shippedRequests);
         }
         return new PluginResult(true);
     }
