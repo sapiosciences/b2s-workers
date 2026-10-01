@@ -52,25 +52,42 @@ public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
 
     @Override
     protected PluginResult run(OnSaveContext ctx) throws Throwable {
-        // Admins can change status freely
         String groupName = user.getUserGroup().getGroupName();
-        if (ShipmentRequisitionManager.GROUP_SAPIO_ADMIN.equals(groupName)) {
-            return new PluginResult(true);
-        }
+        boolean isAdmin = ShipmentRequisitionManager.GROUP_SAPIO_ADMIN.equals(groupName);
+
+        // Pass this plugin's clientCallback so dialogs work in OnSave
+        ShipmentRequisitionManager requisitionMan =
+                new ShipmentRequisitionManager(clientCallback, exemplarContext);
 
         try {
-            // Box rules need child shipment boxes loaded first
-            relationshipMan.loadChildren(changedRequests, C_ShipmentBoxModel.class);
-
-            // Pass this plugin's clientCallback so dialogs work in OnSave
-            ShipmentRequisitionManager requisitionMan =
-                    new ShipmentRequisitionManager(clientCallback, user, dataMgmtServer);
-            List<String> errors = requisitionMan.validateRequests(changedRequests, groupName);
-
-            if (!errors.isEmpty()) {
-                clientCallback.displayError(String.join("\n", errors));
-                return new PluginResult(false);
+            if (!isAdmin) {
+                // Box rules need child shipment boxes loaded first
+                relationshipMan.loadChildren(changedRequests, C_ShipmentBoxModel.class);
+                List<String> errors = requisitionMan.validateRequests(changedRequests, groupName);
+                if (!errors.isEmpty()) {
+                    clientCallback.displayError(String.join("\n", errors));
+                    return new PluginResult(false);
+                }
             }
+
+            List<RequestModel> submittedRequests = new ArrayList<>();
+            List<RequestModel> shippedRequests = new ArrayList<>();
+            for (RequestModel request : changedRequests) {
+                if (ShipmentRequisitionManager.STATUS_SUBMITTED.equals(request.getC_RequisitionStatus())) {
+                    submittedRequests.add(request);
+                } else if (ShipmentRequisitionManager.STATUS_SHIPPED.equals(request.getC_RequisitionStatus())) {
+                    shippedRequests.add(request);
+                }
+            }
+
+            // Only after every transition in this save has been accepted (or admin bypass).
+            if (!submittedRequests.isEmpty()) {
+                requisitionMan.notifySubmitted(submittedRequests);
+            }
+            if (!shippedRequests.isEmpty()) {
+                requisitionMan.notifyShipped(shippedRequests);
+            }
+
             // Persist any Denial Reason we just collected on the requests
             recMan.storeChanges();
             return new PluginResult(true);
