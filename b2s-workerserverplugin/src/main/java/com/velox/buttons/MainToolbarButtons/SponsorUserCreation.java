@@ -104,6 +104,11 @@ public class SponsorUserCreation extends ExemplarVeloxServerPlugin<ActionMenuCon
     }
 
     @Override
+    public List<String> getSectionNamePath() {
+        return List.of("Sponsor Setup");
+    }
+
+    @Override
     public boolean onActionMenu(OnActionMenuContext ctx) throws Throwable {
         return true;
     }
