@@ -111,8 +111,8 @@ public class ShipmentRequisitionManager {
         } else if ((STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from))
                 && STATUS_APPROVED.equals(to)) {
             allowed = GROUP_SPONSOR_APPROVER.equals(groupName);
-        // Deny: Submitted or Under Review → Denied (Sponsor Approver + reason)
-        } else if ((STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from))
+        // Deny: Submitted, Under Review or Approved → Denied (Sponsor Approver + reason)
+        } else if ((STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from) || STATUS_APPROVED.equals(from))
                 && STATUS_DENIED.equals(to)) {
             if (!GROUP_SPONSOR_APPROVER.equals(groupName)) {
                 allowed = false;
@@ -182,7 +182,7 @@ public class ShipmentRequisitionManager {
             return false;
         }
         String from = normalizeStatus(previousStatus);
-        return (STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from))
+        return (STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from) || STATUS_APPROVED.equals(from))
                 && STATUS_DENIED.equals(newStatus);
     }
 

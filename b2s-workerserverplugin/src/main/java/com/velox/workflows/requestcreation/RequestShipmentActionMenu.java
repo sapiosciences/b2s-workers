@@ -360,7 +360,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         return request;
     }
 
-    /** Same lookup as B2S1-247's CreateRequestActionMenu: the contact whose username matches the current user. */
+    /** Same lookup as B2S1-247's CreateSubmission: the contact whose username matches the current user. */
     private C_SponsorContactModel loadSponsorContactForCurrentUser() throws Throwable {
         List<DataRecord> sponsorContacts = dataRecordManager.queryDataRecords(
                 C_SponsorContactModel.DATA_TYPE_NAME,
