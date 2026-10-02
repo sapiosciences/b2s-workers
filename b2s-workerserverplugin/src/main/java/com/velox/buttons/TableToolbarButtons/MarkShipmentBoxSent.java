@@ -74,7 +74,7 @@ public class MarkShipmentBoxSent extends DefaultTableToolbarPlugin {
                 || !C_ShipmentBoxModel.DATA_TYPE_NAME.equalsIgnoreCase(ctx.getDataTypeName())) {
             return false;
         }
-        return ShipmentBoxTableToolbarSupport.isLogisticsUser(user, dataMgmtServer);
+        return ShipmentBoxTableToolbarSupport.isLogisticsUser(user);
     }
 
     @Override
