@@ -6,13 +6,11 @@
  */
 package com.velox.buttons.TableToolbarButtons;
 
-import com.velox.api.datamgmtserver.DataMgmtServer;
 import com.velox.api.user.User;
-import com.velox.api.user.UserGroupInfo;
 import com.velox.recordmodels.C_ShipmentBoxModel;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.List;
+import java.rmi.RemoteException;
 
 /**
  * Shared visibility rules and shipment status constants for Shipment Box table toolbar buttons.
@@ -31,26 +29,9 @@ final class ShipmentBoxTableToolbarSupport {
     private ShipmentBoxTableToolbarSupport() {
     }
 
-    static boolean isLogisticsUser(User user, DataMgmtServer dataMgmtServer) throws Throwable {
-        if (user == null) {
-            return false;
-        }
-        if (user.getUserGroup() != null
-                && LOGISTICS_GROUP.equalsIgnoreCase(user.getUserGroup().getGroupName())) {
-            return true;
-        }
-        List<UserGroupInfo> groups = dataMgmtServer.getUserGroupManager(user)
-                .getUserGroupInfoListForUser(user.getUsername(), user);
-        if (groups == null) {
-            return false;
-        }
-        for (UserGroupInfo groupInfo : groups) {
-            if (groupInfo != null
-                    && LOGISTICS_GROUP.equalsIgnoreCase(groupInfo.getUserGroupName())) {
-                return true;
-            }
-        }
-        return false;
+    /** True only when the user's currently active group is Logistics (membership alone is not enough). */
+    static boolean isLogisticsUser(User user) throws RemoteException {
+        return LOGISTICS_GROUP.equalsIgnoreCase(user.getUserGroup().getGroupName());
     }
 
     static boolean isPending(C_ShipmentBoxModel shipmentBox) {
