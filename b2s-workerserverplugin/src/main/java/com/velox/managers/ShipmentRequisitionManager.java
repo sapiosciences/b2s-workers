@@ -14,6 +14,7 @@ import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.portal.VeloxApp;
+import com.velox.api.session.SessionManager;
 import com.velox.api.user.User;
 import com.velox.api.user.UserGroup;
 import com.velox.api.user.UserGroupInfo;
@@ -23,7 +24,6 @@ import com.velox.api.util.ClientCallbackOperations;
 import com.velox.api.util.ServerException;
 import com.velox.recordmodels.C_ShipmentBoxModel;
 import com.velox.recordmodels.C_SponsorContactModel;
-import com.velox.recordmodels.DirectoryModel;
 import com.velox.recordmodels.ProjectModel;
 import com.velox.recordmodels.RequestModel;
 import com.velox.sapio.commons.exemplar.context.ExemplarContext;
@@ -44,7 +44,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -212,57 +211,42 @@ public class ShipmentRequisitionManager {
     }
 
     /**
-     * Emails Sponsor Approver users (Directory ACL with read/write, and in the Sponsor Approver group)
-     * for each request that was just moved to Submitted. If no Sponsor Approver can be resolved for a
-     * request, notifies every member of Logistics and Project Coordinator instead. One email per
-     * recipient listing all of their matching requests. Call only after every transition in the save
-     * has been validated. Email failures are logged and do not fail the save.
+     * Emails and in-app notifies Sponsor Approver users (Request ACL with read/write, and in the
+     * Sponsor Approver group) for each request that was just moved to Submitted. If no Sponsor
+     * Approver can be resolved for a request, notifies every member of Logistics and Project
+     * Coordinator instead. One email / in-app message per recipient listing all of their matching
+     * requests. Call only after every transition in the save has been validated. Delivery failures
+     * are logged and do not fail the save.
      */
     public void notifySubmitted(List<RequestModel> submittedRequests) throws Throwable {
         if (submittedRequests == null || submittedRequests.isEmpty()) {
             return;
         }
 
-        relationshipMan.loadParents(submittedRequests, C_SponsorContactModel.class);
         relationshipMan.loadParents(submittedRequests, ProjectModel.class);
 
-        List<C_SponsorContactModel> contacts = new ArrayList<>();
-        for (RequestModel request : submittedRequests) {
-            C_SponsorContactModel contact = request.get(Parent.ofType(C_SponsorContactModel.class));
-            if (contact != null) {
-                contacts.add(contact);
-            }
-        }
-        if (!contacts.isEmpty()) {
-            relationshipMan.loadParents(contacts, DirectoryModel.class);
-        }
-
         Map<String, Boolean> sponsorApproverByUsername = new HashMap<>();
-        Map<Long, List<String>> approverEmailsByDirectoryId = new HashMap<>();
-        List<String> fallbackEmails = null;
+        List<NotificationRecipient> fallbackRecipients = null;
+        // Keyed by email so one body is shared for email + in-app to the same person.
+        Map<String, NotificationRecipient> recipientByEmail = new LinkedHashMap<>();
         Map<String, List<RequestModel>> requestsByRecipientEmail = new LinkedHashMap<>();
 
         for (RequestModel request : submittedRequests) {
-            List<String> recipientEmails = List.of();
-            C_SponsorContactModel contact = request.get(Parent.ofType(C_SponsorContactModel.class));
-            DirectoryModel account = contact == null ? null : contact.get(Parent.ofType(DirectoryModel.class));
-            if (account != null) {
-                Long directoryId = account.getRecordId();
-                if (approverEmailsByDirectoryId.containsKey(directoryId)) {
-                    recipientEmails = approverEmailsByDirectoryId.get(directoryId);
-                } else {
-                    recipientEmails = findSponsorApproverEmails(account, sponsorApproverByUsername);
-                    approverEmailsByDirectoryId.put(directoryId, recipientEmails);
+            List<NotificationRecipient> recipients =
+                    findSponsorApproverRecipients(request, sponsorApproverByUsername);
+            if (recipients.isEmpty()) {
+                if (fallbackRecipients == null) {
+                    fallbackRecipients = findLogisticsAndProjectCoordinatorRecipients();
                 }
+                recipients = fallbackRecipients;
             }
-            if (recipientEmails.isEmpty()) {
-                if (fallbackEmails == null) {
-                    fallbackEmails = findLogisticsAndProjectCoordinatorEmails();
+            for (NotificationRecipient recipient : recipients) {
+                if (StringUtils.isBlank(recipient.email)) {
+                    continue;
                 }
-                recipientEmails = fallbackEmails;
-            }
-            for (String email : recipientEmails) {
-                requestsByRecipientEmail.computeIfAbsent(email, key -> new ArrayList<>()).add(request);
+                recipientByEmail.putIfAbsent(recipient.email, recipient);
+                requestsByRecipientEmail.computeIfAbsent(recipient.email, key -> new ArrayList<>())
+                        .add(request);
             }
         }
 
@@ -270,26 +254,21 @@ public class ShipmentRequisitionManager {
             return;
         }
 
-        EmailSender emailSender = exemplarContext.getInstance(EmailSender.class);
         for (Map.Entry<String, List<RequestModel>> entry : requestsByRecipientEmail.entrySet()) {
-            try {
-                Email email = Email.builder()
-                        .to(entry.getKey())
-                        .subject("Shipment requisition(s) submitted")
-                        .htmlBody(buildSubmittedEmailBody(entry.getValue()))
-                        .build();
-                emailSender.sendEmail(email, true);
-            } catch (Exception e) {
-                logger.error("ShipmentRequisitionManager: Failed to send submitted notification to "
-                        + entry.getKey(), e);
-            }
+            NotificationRecipient recipient = recipientByEmail.get(entry.getKey());
+            String body = buildSubmittedEmailBody(entry.getValue());
+            deliverEmailAndInAppNotification(
+                    recipient,
+                    "Shipment requisition(s) submitted",
+                    body,
+                    "submitted");
         }
     }
 
     /**
-     * Emails each shipped request's Sponsor Contact ({@code C_EmailAddress}) with request and shipment
-     * box details. Call only after every transition in the save has been validated. Email failures are
-     * logged and do not fail the save.
+     * Emails and in-app notifies each shipped request's Sponsor Contact with request and shipment
+     * box details. Call only after every transition in the save has been validated. Delivery
+     * failures are logged and do not fail the save.
      */
     public void notifyShipped(List<RequestModel> shippedRequests) throws Throwable {
         if (shippedRequests == null || shippedRequests.isEmpty()) {
@@ -299,7 +278,6 @@ public class ShipmentRequisitionManager {
         relationshipMan.loadParents(shippedRequests, C_SponsorContactModel.class);
         relationshipMan.loadChildren(shippedRequests, C_ShipmentBoxModel.class);
 
-        EmailSender emailSender = exemplarContext.getInstance(EmailSender.class);
         for (RequestModel request : shippedRequests) {
             C_SponsorContactModel contact = request.get(Parent.ofType(C_SponsorContactModel.class));
             if (contact == null || StringUtils.isBlank(contact.getC_EmailAddress())) {
@@ -308,20 +286,50 @@ public class ShipmentRequisitionManager {
                         String.valueOf(request.getRecordId())));
                 continue;
             }
-            String recipient = contact.getC_EmailAddress().trim();
-            try {
-                Email email = Email.builder()
-                        .to(recipient)
-                        .subject("Your Request has Shipped")
-                        .htmlBody(buildShippedEmailBody(request))
-                        .build();
-                emailSender.sendEmail(email, true);
-            } catch (Exception e) {
-                logger.error("ShipmentRequisitionManager: Failed to send shipped notification to "
-                        + recipient + " for request "
-                        + StringUtils.defaultIfBlank(request.getRequestId(),
-                        String.valueOf(request.getRecordId())), e);
-            }
+            NotificationRecipient recipient = new NotificationRecipient(
+                    StringUtils.trimToNull(contact.getC_Username()),
+                    contact.getC_EmailAddress().trim());
+            String body = buildShippedEmailBody(request);
+            deliverEmailAndInAppNotification(
+                    recipient,
+                    "Your Request has Shipped",
+                    body,
+                    "shipped");
+        }
+    }
+
+    /**
+     * Sends the same HTML body as email and as an in-app {@link SessionManager#sendUserMessage}
+     * to the same recipient. Failures are logged independently and never fail the save.
+     */
+    private void deliverEmailAndInAppNotification(NotificationRecipient recipient, String subject,
+            String htmlBody, String notificationKind) {
+        if (recipient == null || StringUtils.isBlank(recipient.email)) {
+            return;
+        }
+
+        try {
+            Email email = Email.builder()
+                    .to(recipient.email)
+                    .subject(subject)
+                    .htmlBody(htmlBody)
+                    .build();
+            exemplarContext.getInstance(EmailSender.class).sendEmail(email, true);
+        } catch (Exception e) {
+            logger.error("ShipmentRequisitionManager: Failed to send " + notificationKind
+                    + " email to " + recipient.email, e);
+        }
+
+        // Prefer Sapio username; fall back to email (sponsor usernames are typically the email).
+        String inAppUsername = StringUtils.isNotBlank(recipient.username)
+                ? recipient.username
+                : recipient.email;
+        try {
+            SessionManager sessionManager = dataMgmtServer.getSessionManager();
+            sessionManager.sendUserMessage(htmlBody, List.of(inAppUsername), user);
+        } catch (Exception e) {
+            logger.error("ShipmentRequisitionManager: Failed to send " + notificationKind
+                    + " in-app notification to " + inAppUsername, e);
         }
     }
 
@@ -372,16 +380,20 @@ public class ShipmentRequisitionManager {
         request.setC_DenialReason(reason);
     }
 
-    private List<String> findSponsorApproverEmails(DirectoryModel account,
+    /**
+     * Sponsor Approvers with read+write on the request's own user ACL map.
+     * Same filter as before, but resolved from the Request instead of its Directory.
+     */
+    private List<NotificationRecipient> findSponsorApproverRecipients(RequestModel request,
             Map<String, Boolean> sponsorApproverByUsername) throws Throwable {
-        DataRecordACL acl = account.getDataRecord().getDataRecordACL(user);
+        DataRecordACL acl = request.getDataRecord().getDataRecordACL(user);
         Map<String, DataRecordAccess> userAccessMap = acl == null ? null : acl.getDataRecordAccessMap();
         if (userAccessMap == null || userAccessMap.isEmpty()) {
             return List.of();
         }
 
         VeloxUserManager userManager = dataMgmtServer.getVeloxUserManager(user);
-        Set<String> emails = new LinkedHashSet<>();
+        Map<String, NotificationRecipient> recipientsByEmail = new LinkedHashMap<>();
         for (Map.Entry<String, DataRecordAccess> entry : userAccessMap.entrySet()) {
             DataRecordAccess access = entry.getValue();
             if (access == null
@@ -394,19 +406,24 @@ public class ShipmentRequisitionManager {
                 continue;
             }
             UserInfo userInfo = userManager.getUserInfo(user, username);
+            String email = null;
             if (userInfo != null && StringUtils.isNotBlank(userInfo.getEmailAddress())) {
-                emails.add(userInfo.getEmailAddress());
+                email = userInfo.getEmailAddress().trim();
             } else if (StringUtils.isNotBlank(username) && username.contains("@")) {
                 // Sponsor usernames are typically the email address.
-                emails.add(username);
+                email = username.trim();
             }
+            if (StringUtils.isBlank(email)) {
+                continue;
+            }
+            recipientsByEmail.putIfAbsent(email, new NotificationRecipient(username, email));
         }
-        return new ArrayList<>(emails);
+        return new ArrayList<>(recipientsByEmail.values());
     }
 
-    /** All email addresses for users in Logistics or Project Coordinator. */
-    private List<String> findLogisticsAndProjectCoordinatorEmails() throws Throwable {
-        Set<String> emails = new LinkedHashSet<>();
+    /** Users in Logistics or Project Coordinator who have an email address. */
+    private List<NotificationRecipient> findLogisticsAndProjectCoordinatorRecipients() throws Throwable {
+        Map<String, NotificationRecipient> recipientsByEmail = new LinkedHashMap<>();
         for (UserGroup group : dataMgmtServer.getUserGroupManager(user).getUserGroupList(user)) {
             if (group == null || !LOGISTICS_OR_COORDINATOR.contains(group.getGroupName())) {
                 continue;
@@ -416,12 +433,15 @@ public class ShipmentRequisitionManager {
                 continue;
             }
             for (User groupUser : groupUsers) {
-                if (groupUser != null && StringUtils.isNotBlank(groupUser.getEmailAddress())) {
-                    emails.add(groupUser.getEmailAddress());
+                if (groupUser == null || StringUtils.isBlank(groupUser.getEmailAddress())) {
+                    continue;
                 }
+                String email = groupUser.getEmailAddress().trim();
+                String username = StringUtils.trimToNull(groupUser.getUsername());
+                recipientsByEmail.putIfAbsent(email, new NotificationRecipient(username, email));
             }
         }
-        return new ArrayList<>(emails);
+        return new ArrayList<>(recipientsByEmail.values());
     }
 
     private boolean isSponsorApprover(String username, Map<String, Boolean> cache) throws Throwable {
@@ -561,5 +581,16 @@ public class ShipmentRequisitionManager {
 
     private static String normalizeStatus(String value) {
         return value == null ? "" : StringUtils.trimToEmpty(value);
+    }
+
+    /** Email recipient plus Sapio username for the matching in-app notification. */
+    private static final class NotificationRecipient {
+        private final String username;
+        private final String email;
+
+        private NotificationRecipient(String username, String email) {
+            this.username = username;
+            this.email = email;
+        }
     }
 }
