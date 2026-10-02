@@ -24,7 +24,6 @@ import com.velox.api.util.ClientCallbackOperations;
 import com.velox.api.util.ServerException;
 import com.velox.recordmodels.C_ShipmentBoxModel;
 import com.velox.recordmodels.C_SponsorContactModel;
-import com.velox.recordmodels.DirectoryModel;
 import com.velox.recordmodels.ProjectModel;
 import com.velox.recordmodels.RequestModel;
 import com.velox.sapio.commons.exemplar.context.ExemplarContext;
@@ -212,7 +211,7 @@ public class ShipmentRequisitionManager {
     }
 
     /**
-     * Emails and in-app notifies Sponsor Approver users (Directory ACL with read/write, and in the
+     * Emails and in-app notifies Sponsor Approver users (Request ACL with read/write, and in the
      * Sponsor Approver group) for each request that was just moved to Submitted. If no Sponsor
      * Approver can be resolved for a request, notifies every member of Logistics and Project
      * Coordinator instead. One email / in-app message per recipient listing all of their matching
@@ -224,40 +223,17 @@ public class ShipmentRequisitionManager {
             return;
         }
 
-        relationshipMan.loadParents(submittedRequests, C_SponsorContactModel.class);
         relationshipMan.loadParents(submittedRequests, ProjectModel.class);
 
-        List<C_SponsorContactModel> contacts = new ArrayList<>();
-        for (RequestModel request : submittedRequests) {
-            C_SponsorContactModel contact = request.get(Parent.ofType(C_SponsorContactModel.class));
-            if (contact != null) {
-                contacts.add(contact);
-            }
-        }
-        if (!contacts.isEmpty()) {
-            relationshipMan.loadParents(contacts, DirectoryModel.class);
-        }
-
         Map<String, Boolean> sponsorApproverByUsername = new HashMap<>();
-        Map<Long, List<NotificationRecipient>> approversByDirectoryId = new HashMap<>();
         List<NotificationRecipient> fallbackRecipients = null;
         // Keyed by email so one body is shared for email + in-app to the same person.
         Map<String, NotificationRecipient> recipientByEmail = new LinkedHashMap<>();
         Map<String, List<RequestModel>> requestsByRecipientEmail = new LinkedHashMap<>();
 
         for (RequestModel request : submittedRequests) {
-            List<NotificationRecipient> recipients = List.of();
-            C_SponsorContactModel contact = request.get(Parent.ofType(C_SponsorContactModel.class));
-            DirectoryModel account = contact == null ? null : contact.get(Parent.ofType(DirectoryModel.class));
-            if (account != null) {
-                Long directoryId = account.getRecordId();
-                if (approversByDirectoryId.containsKey(directoryId)) {
-                    recipients = approversByDirectoryId.get(directoryId);
-                } else {
-                    recipients = findSponsorApproverRecipients(account, sponsorApproverByUsername);
-                    approversByDirectoryId.put(directoryId, recipients);
-                }
-            }
+            List<NotificationRecipient> recipients =
+                    findSponsorApproverRecipients(request, sponsorApproverByUsername);
             if (recipients.isEmpty()) {
                 if (fallbackRecipients == null) {
                     fallbackRecipients = findLogisticsAndProjectCoordinatorRecipients();
@@ -404,9 +380,13 @@ public class ShipmentRequisitionManager {
         request.setC_DenialReason(reason);
     }
 
-    private List<NotificationRecipient> findSponsorApproverRecipients(DirectoryModel account,
+    /**
+     * Sponsor Approvers with read+write on the request's own user ACL map.
+     * Same filter as before, but resolved from the Request instead of its Directory.
+     */
+    private List<NotificationRecipient> findSponsorApproverRecipients(RequestModel request,
             Map<String, Boolean> sponsorApproverByUsername) throws Throwable {
-        DataRecordACL acl = account.getDataRecord().getDataRecordACL(user);
+        DataRecordACL acl = request.getDataRecord().getDataRecordACL(user);
         Map<String, DataRecordAccess> userAccessMap = acl == null ? null : acl.getDataRecordAccessMap();
         if (userAccessMap == null || userAccessMap.isEmpty()) {
             return List.of();
