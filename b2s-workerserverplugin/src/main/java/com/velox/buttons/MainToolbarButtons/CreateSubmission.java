@@ -13,7 +13,6 @@ import com.velox.api.datarecord.DataRecord;
 import com.velox.api.datatype.DataTypeDefinition;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.datatypelayout.DataTypeLayout;
-import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.directive.DataRecordFormDirective;
@@ -213,21 +212,11 @@ public class CreateSubmission extends ExemplarVeloxServerPlugin<ActionMenuContex
 
     /**
      * Shows the submission details popup using Request's "Sponsor Creation Layout" from Data Designer.
-     * Number of Samples and Expected Arrival Date must be filled in; everything else on the layout is optional.
+     * Required/optional flags come from that layout as configured.
      * If samples were already picked, Number of Samples is pre-filled with that count.
      */
     private Map<String, Object> promptForDetails(List<SampleModel> selectedSamples) throws Throwable {
         TemporaryDataType form = loadSponsorCreationForm();
-
-        // Force these two required in the popup even if Data Designer left them optional.
-        VeloxFieldDefinition<?> numberOfSamples = form.getVeloxFieldDefinition(RequestModel.NUMBER_OF_SAMPLES);
-        if (numberOfSamples != null) {
-            numberOfSamples.setRequired(true);
-        }
-        VeloxFieldDefinition<?> expectedArrival = form.getVeloxFieldDefinition(RequestModel.C___EXPECTED_ARRIVAL_DATE);
-        if (expectedArrival != null) {
-            expectedArrival.setRequired(true);
-        }
 
         // When samples were selected up front, start Number of Samples at that count.
         Map<String, Object> defaults = new HashMap<>();
