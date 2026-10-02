@@ -375,7 +375,6 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
 
     private static String formatAddress(C_SponsorAddressModel address) {
         List<String> lines = new ArrayList<>();
-        addIfPresent(lines, address.getC_AddressName());
         addIfPresent(lines, address.getC_Attention() == null ? null : "Attn: " + address.getC_Attention());
         addIfPresent(lines, address.getC_AddressLine1());
         addIfPresent(lines, address.getC_AddressLine2());
