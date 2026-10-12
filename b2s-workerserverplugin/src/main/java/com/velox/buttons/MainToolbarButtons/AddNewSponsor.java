@@ -79,6 +79,11 @@ public class AddNewSponsor extends ExemplarVeloxServerPlugin<ActionMenuContext>
     }
 
     @Override
+    public List<String> getSectionNamePath() {
+        return List.of("Sponsor Setup");
+    }
+
+    @Override
     public boolean onActionMenu(OnActionMenuContext ctx) throws Throwable {
         return true;
     }
