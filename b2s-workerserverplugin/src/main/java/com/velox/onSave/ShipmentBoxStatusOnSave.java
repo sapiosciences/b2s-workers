@@ -96,7 +96,7 @@ public class ShipmentBoxStatusOnSave extends DefaultOnSavePlugin {
         if (requests.isEmpty()) {
             return new PluginResult(true);
         }
-        recMan.storeAndCommit("Update samples and storage units for shipment box status change");
+        recMan.storeChanges();
 
         // Separate commit so B2S1-244's status check sees the box changes above.
         boolean requestChanged = false;
@@ -104,7 +104,7 @@ public class ShipmentBoxStatusOnSave extends DefaultOnSavePlugin {
             requestChanged |= rollUpRequestStatus(request);
         }
         if (requestChanged) {
-            recMan.storeAndCommit("Roll up shipment box status to Request");
+            recMan.storeChanges();
         }
         return new PluginResult(true);
     }
