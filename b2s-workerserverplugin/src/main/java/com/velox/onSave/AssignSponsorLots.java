@@ -41,22 +41,23 @@ public class AssignSponsorLots extends DefaultOnSavePlugin {
 
     @Override
     protected boolean shouldRun(OnSaveContext ctx) throws Throwable {
-        // A save can include mixed record types; we only care about Samples
-        List<DataRecord> sampleRecords = new ArrayList<>();
-        for (DataRecord record : ctx.getDataRecordList()) {
-            if (SampleModel.DATA_TYPE_NAME.equals(record.getDataTypeName())) {
-                sampleRecords.add(record);
-            }
-        }
-
-        // Skip if there are no samples, or no UI to show the confirmation dialog
-        if (sampleRecords.isEmpty() || clientCallback == null) {
-            return false;
-        }
-
-        // Convert to SampleModels so we can use typed fields and relationships
-        samples = instMan.addExistingRecordsOfType(sampleRecords, SampleModel.class);
-        return true;
+//        // A save can include mixed record types; we only care about Samples
+//        List<DataRecord> sampleRecords = new ArrayList<>();
+//        for (DataRecord record : ctx.getDataRecordList()) {
+//            if (SampleModel.DATA_TYPE_NAME.equals(record.getDataTypeName())) {
+//                sampleRecords.add(record);
+//            }
+//        }
+//
+//        // Skip if there are no samples, or no UI to show the confirmation dialog
+//        if (sampleRecords.isEmpty() || clientCallback == null) {
+//            return false;
+//        }
+//
+//        // Convert to SampleModels so we can use typed fields and relationships
+//        samples = instMan.addExistingRecordsOfType(sampleRecords, SampleModel.class);
+//        return true;
+        return false;
     }
 
     @Override
