@@ -7,33 +7,28 @@
 package com.velox.buttons.TableToolbarButtons;
 
 import com.velox.RemoteIconUtil;
-import com.velox.api.access.AccessType;
 import com.velox.api.clientcallback.DataRecordSelectionCriteria;
 import com.velox.api.datarecord.DataRecord;
 import com.velox.api.datatype.DataTypeDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
-import com.velox.api.plugin.invocation.context.OnTableToolbarContext;
-import com.velox.api.plugin.invocation.context.TableToolbarContext;
-import com.velox.plugin.materialsmanagement.manager.ConsumableConfigManager;
-import com.velox.plugin.materialsmanagement.manager.DataStructureManager;
-import com.velox.plugin.materialsmanagement.pojo.descriptor.ItemDescriptor;
-import com.velox.plugin.materialsmanagement.pojo.descriptor.ParentDescriptor;
-import com.velox.plugin.materialsmanagement.util.ConsumableUtil;
+import com.velox.api.plugin.invocation.context.FormToolbarContext;
+import com.velox.api.plugin.invocation.context.OnFormToolbarContext;
 import com.velox.recordmodels.C_SponsorLotModel;
 import com.velox.recordmodels.ProjectModel;
 import com.velox.recordmodels.SampleModel;
 import com.velox.sapio.commons.exemplar.plugin.PluginOrder;
-import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultTableToolbarPlugin;
+import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlugin;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Child;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import com.velox.sapio.commons.exemplar.recordmodel.util.RecordModelUtil;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -41,9 +36,14 @@ import java.util.stream.Collectors;
  *
  * @author Connor Skevington
  */
-public class CreateSponsorLot extends DefaultTableToolbarPlugin {
+public class CreateSponsorLot extends DefaultFormToolbarPlugin {
 
     private static final double MINIMUM_THRESHOLD_FRACTION = 0.25;
+
+    // ExemplarConfig stores consumable mappings as: Part ::: Sample ::: Item (one per line)
+    private static final String EXEMPLAR_CONFIG_DATA_TYPE = "ExemplarConfig";
+    private static final String CONSUMABLE_DATA_TYPES_FIELD = "ConsumableDataTypes";
+    private static final String CONSUMABLE_DATA_TYPE_SEGMENT_DELIMITER = " ::: ";
 
     @Override
     public String getLine1Text() {
@@ -71,49 +71,54 @@ public class CreateSponsorLot extends DefaultTableToolbarPlugin {
     }
 
     /**
-     * Same visibility rules as materials-management {@code AddConsumableItems}, adapted for table toolbar:
-     * the Part is {@link OnTableToolbarContext#getBaseDataRecord()} rather than the form record.
+     * Show when the open form's data type is an MM Part (first segment of
+     * ExemplarConfig.ConsumableDataTypes). Restricted workers cannot load MM classes.
      */
     @Override
-    public boolean onTableToolbar(OnTableToolbarContext ctx) throws Throwable {
-        DataRecord baseDataRecord = ctx.getBaseDataRecord();
-        if (baseDataRecord == null) {
-            return false;
+    public boolean onFormToolbar(OnFormToolbarContext ctx) throws Throwable {
+        String dataTypeName = ctx.getDataTypeName();
+        return dataTypeName != null && getPartDataTypes().contains(dataTypeName);
+    }
+
+    /** Part data type names from ExemplarConfig.ConsumableDataTypes. */
+    private Set<String> getPartDataTypes() throws Throwable {
+        Set<String> partTypes = new HashSet<>();
+        List<DataRecord> configRecords =
+                dataRecordManager.getAllRecordsOfType(EXEMPLAR_CONFIG_DATA_TYPE, user);
+        if (configRecords == null || configRecords.size() != 1) {
+            return partTypes;
         }
 
-        try {
-            String partDataType = baseDataRecord.getDataTypeName();
-            ConsumableConfigManager configMan = exemplarContext.getInstance(ConsumableConfigManager.class);
-
-            if (!configMan.isParentDataType(partDataType)) {
-                return false;
-            } else if (!ConsumableUtil.isAccessible(partDataType, exemplarContext, AccessType.WRITE)) {
-                return false;
-            }
-
-            ParentDescriptor parentDescriptor = configMan.getParentDescriptor(partDataType);
-            if (parentDescriptor == null) {
-                return false;
-            }
-
-            Collection<ItemDescriptor> itemDescriptors = configMan.getItemDescriptorsForParent(parentDescriptor);
-            DataStructureManager dataStrMan = exemplarContext.getInstance(DataStructureManager.class);
-
-            return !dataStrMan
-                    .getAvailableAndAccessibleDataTypes(itemDescriptors, exemplarContext, AccessType.CREATE)
-                    .isEmpty();
-        } catch (Throwable e) {
-            logError("Failed to check if '" + getLine1Text() + " " + getLine2Text() + "' should show.", e);
-            return false;
+        RecordModel config = instMan.addExistingRecord(configRecords.get(0));
+        Object raw = config.getField(CONSUMABLE_DATA_TYPES_FIELD);
+        String consumableDataTypes = raw == null ? null : raw.toString();
+        if (consumableDataTypes == null || consumableDataTypes.isBlank()) {
+            return partTypes;
         }
+
+        for (String line : consumableDataTypes.lines().toList()) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            String[] segments = trimmed.split(CONSUMABLE_DATA_TYPE_SEGMENT_DELIMITER, -1);
+            if (segments.length < 1) {
+                continue;
+            }
+            String partDataType = segments[0].trim();
+            if (!partDataType.isEmpty()) {
+                partTypes.add(partDataType);
+            }
+        }
+        return partTypes;
     }
 
     @Override
-    protected PluginResult run(TableToolbarContext ctx) throws Throwable {
+    protected PluginResult run(FormToolbarContext ctx) throws Throwable {
         try {
-            DataRecord partRecord = ctx.getBaseDataRecord();
+            DataRecord partRecord = ctx.getDataRecord();
             if (partRecord == null) {
-                clientCallback.displayError("Open this button from a Part record's Samples table.");
+                clientCallback.displayError("Open this button from a Part record form.");
                 return new PluginResult(false);
             }
             RecordModel part = instMan.addExistingRecord(partRecord);
