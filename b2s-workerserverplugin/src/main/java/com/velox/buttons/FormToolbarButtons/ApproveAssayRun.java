@@ -4,14 +4,7 @@
  * This software is the property of Sapio Sciences.
  * ====================================================================
  */
-/**
- * Created: 2026-08-31 12:00
- * Agent type: Composer
- * Modified: 2026-08-31 12:25
- * Agent type: Composer
- * Modified: 2026-08-31 12:30
- * Agent type: Composer
- */
+
 package com.velox.buttons.FormToolbarButtons;
 
 import com.velox.RemoteIconUtil;
@@ -143,6 +136,8 @@ public class ApproveAssayRun extends DefaultFormToolbarPlugin {
             }
 
             masterAssayRun.setC_Approved(true);
+            masterAssayRun.setC_ApprovedBy(eSign.getUserInfo().getUsername());
+            masterAssayRun.setC_DateApproved(System.currentTimeMillis());
             recMan.storeAndCommit("Approve Master Assay Run " + masterAssayRun.getRecordId());
 
             return new PluginResult(true, new RefreshCurrentViewDirective());
