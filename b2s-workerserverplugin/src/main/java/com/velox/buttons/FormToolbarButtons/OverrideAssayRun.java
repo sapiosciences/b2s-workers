@@ -16,8 +16,7 @@ import com.velox.api.plugin.directive.RefreshCurrentViewDirective;
 import com.velox.api.plugin.invocation.context.FormToolbarContext;
 import com.velox.api.plugin.invocation.context.OnFormToolbarContext;
 import com.velox.api.user.ESignAuthentication;
-import com.velox.api.user.UserGroupInfo;
-import com.velox.api.util.ServerException;
+import com.velox.managers.MasterAssayRunApprovalHelper;
 import com.velox.recordmodels.SBA_AssayRunResultModel;
 import com.velox.recordmodels.SBA_MasterAssayRunModel;
 import com.velox.sapio.commons.exemplar.definition.form.FormBuilder;
@@ -25,9 +24,7 @@ import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlu
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import org.apache.commons.lang3.StringUtils;
 
-import java.rmi.RemoteException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,17 +34,7 @@ import java.util.Map;
  */
 public class OverrideAssayRun extends DefaultFormToolbarPlugin {
 
-    private static final String STATUS_PASSED = "Passed";
-    private static final String STATUS_FAILED = "Failed";
-    private static final String ACCEPT = "Accept";
-    private static final String REJECT = "Reject";
-    private static final String PRINCIPAL_INVESTIGATOR_GROUP = "Principal Investigator";
     private static final String REASON_FIELD = "Reason";
-
-    private static final String PI_REQUIRED_MESSAGE =
-            "Only a user in the Principal Investigator group may approve this Master Assay Run.";
-    private static final String SAME_USER_MESSAGE =
-            "The Principal Investigator who approves this Master Assay Run must be different from the user who completed it.";
 
     @Override
     public String getDescription() {
@@ -69,30 +56,9 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
         return RemoteIconUtil.getRemoteIcon(this, "step-over.svg");
     }
 
-    /**
-     * Shown only on {@link SBA_MasterAssayRunModel} forms where {@code C_Approved} is not true,
-     * both {@code SBA_DateCompleted} and {@code SBA_CompletedBy} are populated, and the current
-     * user's active group is Principal Investigator.
-     */
     @Override
     public boolean onFormToolbar(OnFormToolbarContext ctx) throws Throwable {
-        if (ctx.getDataTypeName() == null
-                || !SBA_MasterAssayRunModel.DATA_TYPE_NAME.equals(ctx.getDataTypeName())) {
-            return false;
-        }
-        if (ctx.getDataRecord() == null) {
-            return false;
-        }
-        if (user.getUserGroup() == null
-                || !PRINCIPAL_INVESTIGATOR_GROUP.equals(user.getUserGroup().getGroupName())) {
-            return false;
-        }
-
-        SBA_MasterAssayRunModel assayRun =
-                instMan.addExistingRecordOfType(ctx.getDataRecord(), SBA_MasterAssayRunModel.class);
-        return !Boolean.TRUE.equals(assayRun.getC_Approved())
-                && assayRun.getSBA_DateCompleted() != null
-                && StringUtils.isNotBlank(assayRun.getSBA_CompletedBy());
+        return new MasterAssayRunApprovalHelper(exemplarContext).shouldShowOnFormToolbar(ctx);
     }
 
     @Override
@@ -103,6 +69,8 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
                 return new PluginResult(false);
             }
 
+            MasterAssayRunApprovalHelper approvalHelper =
+                    new MasterAssayRunApprovalHelper(exemplarContext);
             SBA_MasterAssayRunModel masterAssayRun =
                     instMan.addExistingRecordOfType(ctx.getDataRecord(), SBA_MasterAssayRunModel.class);
 
@@ -110,66 +78,32 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
             Collection<SBA_AssayRunResultModel> results =
                     masterAssayRun.get(Children.ofType(SBA_AssayRunResultModel.class));
 
+            // Override-specific: gather reasons for any misaligned child outcomes
             collectReasonsForMisalignedResults(results);
 
             ESignAuthentication eSign = clientCallback.showESignDialog(
                     "Electronic Signature",
                     "A Principal Investigator must authenticate to override and approve this Master Assay Run.",
                     true,
-                    buildReadOnlyESignFields(masterAssayRun),
+                    MasterAssayRunApprovalHelper.buildReadOnlyESignFields(masterAssayRun),
                     user);
             if (eSign == null || !eSign.isAuthenticated()) {
                 return new PluginResult(true);
             }
 
-            if (!isPrincipalInvestigator(eSign)) {
-                clientCallback.displayError(PI_REQUIRED_MESSAGE);
+            if (!approvalHelper.validateApprovingESign(eSign, masterAssayRun, clientCallback)) {
                 return new PluginResult(false);
             }
 
-            if (isSameAsCompletedBy(eSign, masterAssayRun)) {
-                clientCallback.displayError(SAME_USER_MESSAGE);
-                return new PluginResult(false);
-            }
-
-            masterAssayRun.setC_Approved(true);
-            masterAssayRun.setC_ApprovedBy(eSign.getUserInfo().getUsername());
-            masterAssayRun.setC_DateApproved(System.currentTimeMillis());
-            recMan.storeAndCommit("Override and approve Master Assay Run " + masterAssayRun.getRecordId());
+            approvalHelper.applyApproval(
+                    masterAssayRun,
+                    eSign.getUserInfo().getUsername(),
+                    "Override and approve Master Assay Run " + masterAssayRun.getRecordId());
 
             return new PluginResult(true, new RefreshCurrentViewDirective());
         } catch (UserRequestedCancelServerException e) {
             return new PluginResult(true);
         }
-    }
-
-    /**
-     * Builds read-only summary fields for the e-sign dialog from the current Master Assay Run.
-     */
-    private static TemporaryDataType buildReadOnlyESignFields(SBA_MasterAssayRunModel masterAssayRun) throws ServerException, RemoteException {
-        FormBuilder formBuilder = new FormBuilder();
-        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
-                .dataFieldName(SBA_MasterAssayRunModel.SBA___RUN_RESULT)
-                .displayName("Run Result")
-                .editable(false)
-                .required(false)
-                .defaultValue(masterAssayRun.getSBA_RunResult())
-                .build());
-        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
-                .dataFieldName(SBA_MasterAssayRunModel.SBA___OVERRIDE_COMMENT)
-                .displayName("Override Comment")
-                .editable(false)
-                .required(false)
-                .defaultValue(masterAssayRun.getSBA_OverrideComment())
-                .build());
-        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
-                .dataFieldName(SBA_MasterAssayRunModel.SBA___COMPLETED_BY)
-                .displayName("Completed By")
-                .editable(false)
-                .required(false)
-                .defaultValue(masterAssayRun.getSBA_CompletedBy())
-                .build());
-        return formBuilder.getTemporaryDataType();
     }
 
     /**
@@ -185,19 +119,19 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
         }
 
         for (SBA_AssayRunResultModel result : results) {
-            if (isOutcomeConsistent(result)) {
+            if (MasterAssayRunApprovalHelper.isOutcomeConsistent(result)) {
                 continue;
             }
 
             String acceptOrReject = result.getSBA_AcceptOrReject();
-            if (ACCEPT.equals(acceptOrReject)) {
+            if (MasterAssayRunApprovalHelper.ACCEPT.equals(acceptOrReject)) {
                 String reason = promptForReason(
                         "Override Reason",
                         "Provide an override reason for result "
                                 + describeResult(result) + " (Accept/Reject is Accept).",
                         "Override Reason");
                 result.setSBA_ManualOverrideReason(reason);
-            } else if (REJECT.equals(acceptOrReject)) {
+            } else if (MasterAssayRunApprovalHelper.REJECT.equals(acceptOrReject)) {
                 String reason = promptForReason(
                         "Rejection Reason",
                         "Provide a rejection reason for result "
@@ -246,57 +180,5 @@ public class OverrideAssayRun extends DefaultFormToolbarPlugin {
             return result.getDataRecordName();
         }
         return "RecordId " + result.getRecordId();
-    }
-
-    private boolean isPrincipalInvestigator(ESignAuthentication eSign) throws Throwable {
-        if (eSign.getUserInfo() == null || StringUtils.isBlank(eSign.getUserInfo().getUsername())) {
-            return false;
-        }
-
-        List<UserGroupInfo> groups = dataMgmtServer.getUserGroupManager(user)
-                .getUserGroupInfoListForUser(eSign.getUserInfo().getUsername(), user);
-        if (groups == null || groups.isEmpty()) {
-            return false;
-        }
-
-        return groups.stream()
-                .anyMatch(group -> PRINCIPAL_INVESTIGATOR_GROUP.equals(group.getUserGroupName()));
-    }
-
-    /**
-     * Returns true when the e-signing user is the same as {@code SBA_CompletedBy} on the run.
-     */
-    private static boolean isSameAsCompletedBy(
-            ESignAuthentication eSign, SBA_MasterAssayRunModel masterAssayRun) throws RemoteException {
-        if (eSign.getUserInfo() == null || StringUtils.isBlank(eSign.getUserInfo().getUsername())) {
-            return false;
-        }
-        return StringUtils.equalsIgnoreCase(
-                eSign.getUserInfo().getUsername(), masterAssayRun.getSBA_CompletedBy());
-    }
-
-    private static boolean isOutcomeConsistent(SBA_AssayRunResultModel result) {
-        boolean failureDetected = isFailureDetected(result.getField(SBA_AssayRunResultModel.SBA___FAILURE_DETECTED));
-        String acceptOrReject = result.getSBA_AcceptOrReject();
-        String status = result.getSBA_Status();
-
-        if (failureDetected) {
-            return REJECT.equals(acceptOrReject) && STATUS_FAILED.equals(status);
-        }
-        return ACCEPT.equals(acceptOrReject) && STATUS_PASSED.equals(status);
-    }
-
-    private static boolean isFailureDetected(Object value) {
-        if (value == null) {
-            return false;
-        }
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        String text = value.toString().trim();
-        if (StringUtils.isBlank(text)) {
-            return false;
-        }
-        return Boolean.parseBoolean(text) || "yes".equalsIgnoreCase(text) || "1".equals(text);
     }
 }
