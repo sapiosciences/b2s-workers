@@ -69,8 +69,8 @@ import java.util.stream.Collectors;
  *   <li>Pick destination address (from the sponsor Directory)</li>
  *   <li>Pick Date Needed (with 48-hour / weekend warnings)</li>
  *   <li>Pick Ready vials</li>
- *   <li>If the pick would drain a Sponsor Lot (or Part) below its minimum → warn; status becomes
- *       Awaiting B2S Approval instead of Submitted</li>
+ *   <li>If the pick would leave a Sponsor Lot (or Part) at or below its minimum number of
+ *       non-empty vials → warn; status becomes Awaiting B2S Approval instead of Submitted</li>
  *   <li>Review summary → optional file attachment</li>
  *   <li>One commit: create Request, move vials off the lot onto the Request, mark them Reserved</li>
  * </ol>
@@ -81,8 +81,8 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     private static final String REQUEST_TYPE_SHIPMENT_REQUISITION = "Shipment Requisition";
     // Same value the OOTB request portal uses when existing samples are selected.
     private static final String ADD_SAMPLES_METHOD_SELECT_EXISTING = "Selected Samples from Exemplar BioBank";
-    // On a Part with no Sponsor Lot, this field is the "don't go below this volume" threshold
-    private static final String PART_MINIMUM_VOLUME_FIELD = "ReorderLevelQuantity";
+    // On a Part with no Sponsor Lot, this field is the minimum number of non-empty vials to keep.
+    private static final String PART_REORDER_LEVEL_FIELD = "ReorderLevelQuantity";
 
     private static final String SAMPLE_READY = "Ready";
     private static final String SAMPLE_RESERVED = "Reserved";
@@ -153,7 +153,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                 return new PluginResult(true);
             }
 
-            // Submitted normally; Awaiting B2S Approval if this pick would breach a volume minimum
+            // Submitted normally; Awaiting B2S Approval if this pick would leave too few non-empty vials
             String requisitionStatus = resolveRequisitionStatusForSelection(selectedSamples);
             confirmReview(project, destination, dateNeeded, selectedSamples);
             // Re-check Ready in case another user grabbed a vial while dialogs were open
@@ -335,7 +335,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             return ShipmentRequisitionManager.STATUS_SUBMITTED;
         }
 
-        String message = "This shipment would leave inventory at or below the minimum threshold:\n\n"
+        String message = "This shipment would leave a Sponsor Lot or Part at or below its minimum number of non-empty vials:\n\n"
                 + String.join("\n", breachMessages)
                 + "\n\nIf you continue, the request will be created as "
                 + ShipmentRequisitionManager.STATUS_AWAITING_B2S_APPROVAL
@@ -379,11 +379,12 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                 if (threshold == null) {
                     continue;
                 }
-                // Remaining = all child volumes on the lot, minus the ones the user just picked
+                // Remaining = non-empty child vials still on the lot after this pick.
+                // Threshold is a vial count (25% of the non-empty vials allocated at creation).
                 Set<Long> selectedIds = selectedByLotId.getOrDefault(lot.getRecordId(), List.of()).stream()
                         .map(SampleModel::getRecordId)
                         .collect(Collectors.toCollection(LinkedHashSet::new));
-                double remaining = sumVolumesExcluding(
+                int remaining = countNonEmptyExcluding(
                         lot.get(Children.ofType(SampleModel.class)), selectedIds);
                 if (remaining <= threshold) {
                     breaches.add(formatBreachLine(
@@ -402,7 +403,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
 
     /**
      * For selected vials with no Sponsor Lot: resolve the materials-management Part parent and compare
-     * remaining child-sample volume to {@link #PART_MINIMUM_VOLUME_FIELD}. Skip when there is no Part.
+     * remaining non-empty child vials to {@link #PART_REORDER_LEVEL_FIELD}. Skip when there is no Part.
      */
     private List<String> findPartMinimumThresholdBreaches(List<SampleModel> samplesWithoutLot) throws Throwable {
         if (samplesWithoutLot.isEmpty()) {
@@ -458,14 +459,14 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         List<String> breaches = new ArrayList<>();
         for (Map.Entry<String, RecordModel> entry : partsByKey.entrySet()) {
             RecordModel part = entry.getValue();
-            Double threshold = toDouble(part.getField(PART_MINIMUM_VOLUME_FIELD));
+            Double threshold = toDouble(part.getField(PART_REORDER_LEVEL_FIELD));
             if (threshold == null) {
                 continue;
             }
             Set<Long> selectedIds = selectedByPartKey.getOrDefault(entry.getKey(), List.of()).stream()
                     .map(SampleModel::getRecordId)
                     .collect(Collectors.toCollection(LinkedHashSet::new));
-            double remaining = sumVolumesExcluding(
+            int remaining = countNonEmptyExcluding(
                     part.get(Children.ofType(SampleModel.class)), selectedIds);
             if (remaining <= threshold) {
                 Object partName = part.getField("DataRecordName");
@@ -504,19 +505,19 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         }
     }
 
-    // Sum sample volumes, skipping any record IDs in the excluded set (the ones being requested)
-    private static double sumVolumesExcluding(Iterable<SampleModel> samples, Set<Long> excludedRecordIds) {
-        double total = 0.0;
+    // Non-empty vials still present after skipping the ones being requested. Volume > 0 counts as non-empty.
+    private static int countNonEmptyExcluding(Iterable<SampleModel> samples, Set<Long> excludedRecordIds) {
+        int count = 0;
         for (SampleModel sample : samples) {
             if (sample.getRecordId() != null && excludedRecordIds.contains(sample.getRecordId())) {
                 continue;
             }
             Double volume = sample.getVolume();
-            if (volume != null) {
-                total += volume;
+            if (volume != null && volume > 0.0) {
+                count++;
             }
         }
-        return total;
+        return count;
     }
 
     private static Double toDouble(Object value) {
@@ -533,9 +534,18 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         return null;
     }
 
-    private static String formatBreachLine(String kind, String name, double remaining, double threshold) {
-        return "- " + kind + " " + name + ": remaining volume " + remaining
-                + " (minimum " + threshold + ")";
+    private static String formatBreachLine(String kind, String name, int remaining, double threshold) {
+        String vials = remaining == 1 ? "non-empty vial" : "non-empty vials";
+        return "- " + kind + " " + name + ": " + remaining + " " + vials
+                + " would remain (minimum " + formatCount(threshold) + ")";
+    }
+
+    // Whole numbers print without a trailing ".0" (a threshold of 8, not 8.0).
+    private static String formatCount(double value) {
+        if (!Double.isInfinite(value) && value == Math.rint(value)) {
+            return Long.toString((long) value);
+        }
+        return Double.toString(value);
     }
 
     private void confirmReview(ProjectModel project, C_SponsorAddressModel destination, long dateNeeded,
