@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
  */
 public class CreateSponsorLot extends DefaultFormToolbarPlugin {
 
+    // Alert once non-empty vials (volume > 0) drop to 25% of the number allocated onto the lot.
     private static final double MINIMUM_THRESHOLD_FRACTION = 0.25;
 
     // ExemplarConfig stores consumable mappings as: Part ::: Sample ::: Item (one per line)
@@ -210,16 +211,25 @@ public class CreateSponsorLot extends DefaultFormToolbarPlugin {
     private void createSponsorLot(ProjectModel project, RecordModel part, List<SampleModel> selectedVials)
             throws Throwable {
         double totalVolume = 0.0;
+        int nonEmptyVials = 0;
         for (SampleModel vial : selectedVials) {
             Double volume = vial.getVolume();
-            if (volume != null) {
-                totalVolume += volume;
+            if (volume == null) {
+                continue;
+            }
+            totalVolume += volume;
+            if (volume > 0.0) {
+                nonEmptyVials++;
             }
         }
 
+        // Round up to a whole vial. A fractional vial cannot be kept, so 3 non-empty vials
+        // become a threshold of 1 rather than 0.75.
+        double minimumThreshold = Math.ceil(nonEmptyVials * MINIMUM_THRESHOLD_FRACTION);
+
         C_SponsorLotModel sponsorLot = instMan.addNewRecord(C_SponsorLotModel.class);
         sponsorLot.setC_Volume(totalVolume);
-        sponsorLot.setC_MinimumThreshold(totalVolume * MINIMUM_THRESHOLD_FRACTION);
+        sponsorLot.setC_MinimumThreshold(minimumThreshold);
 
         // Project → Lot ← Part; Lot → selected vials
         project.add(Child.ref(sponsorLot));
