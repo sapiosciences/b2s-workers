@@ -25,11 +25,12 @@ import java.util.Objects;
 /**
  * Runs when an Assay Run Sample Result has Is Reportable changed to true.
  *
- * <p>Only one non-rejected sample result under a Sample may be reportable. All other non-rejected
- * siblings must have a Reanalysis Reason. BLQ results that were over-diluted (dilution factor &gt; 1)
- * cannot be marked reportable. Sibling results under a Master Assay Run with Run Result = Reject are
- * ignored for sibling checks. Reportable By / Date Reportable are only stamped when the current
- * result's Master Assay Run is not Reject.
+ * <p>The result's Master Assay Run must be approved (Approved = true). Only one non-rejected
+ * sample result per analyte under a Sample may be reportable. All other non-rejected siblings for
+ * the same analyte must have a Reanalysis Reason. BLQ results that were over-diluted (dilution
+ * factor &gt; 1) cannot be marked reportable. Sibling results under a Master Assay Run with Run
+ * Result = Reject are ignored for sibling checks. Reportable By / Date Reportable are stamped on
+ * every result marked reportable, including results on a rejected run.
  */
 public class ReportableResultOnSave extends DefaultOnSavePlugin {
 
@@ -37,11 +38,12 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
     private static final String RUN_RESULT_REJECT = "Reject";
 
     private static final String ALREADY_REPORTABLE_MESSAGE =
-            "Result %s is already the reportable result for this sample. Clear it first.";
+            "Result %s is already the reportable result for this sample/analyte. Clear it first.";
     private static final String MISSING_REANALYSIS_REASON_MESSAGE =
-            "The other results for this sample require reanalysis reasons.";
+            "The other results for this sample/analyte require reanalysis reasons.";
     private static final String OVER_DILUTED_BLQ_MESSAGE =
             "This BLQ Result was over-diluted and must be reassayed. It cannot be reported";
+    private static final String RUN_NOT_APPROVED_MESSAGE = "This run hasn't been approved yet.";
 
     // Results from the current save whose Is Reportable just became true — filled in by shouldRun()
     private List<SBA_AssayRunSampleResultModel> reportableResults;
@@ -78,6 +80,12 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
                         .parent(SBA_MasterAssayRunModel.class));
 
         for (SBA_AssayRunSampleResultModel result : reportableResults) {
+            // Results can only be reported once their Master Assay Run is PI-approved
+            if (!isApprovedMasterAssayRun(result.get(Parent.ofType(SBA_MasterAssayRunModel.class)))) {
+                clientCallback.displayError(RUN_NOT_APPROVED_MESSAGE);
+                return new PluginResult(false);
+            }
+
             // Each sample result has exactly one Sample parent
             SampleModel sample = result.get(Parent.ofType(SampleModel.class));
 
@@ -85,6 +93,12 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
             for (SBA_AssayRunSampleResultModel sibling :
                     sample.get(Children.ofType(SBA_AssayRunSampleResultModel.class))) {
                 if (Objects.equals(sibling.getRecordId(), result.getRecordId())) {
+                    continue;
+                }
+                // Only results for the same analyte compete for reportable
+                // null and "" are treated as the same analyte, matching MasterAssayRunApprovalHelper
+                if (!StringUtils.defaultString(sibling.getSBA_AnalyteName())
+                        .equals(StringUtils.defaultString(result.getSBA_AnalyteName()))) {
                     continue;
                 }
                 SBA_MasterAssayRunModel siblingMaster =
@@ -117,15 +131,17 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
                 }
             }
 
-            // Rejected Master Assay Runs still allow Is Reportable, but skip the audit stamps
-            if (!isRejectedMasterAssayRun(result.get(Parent.ofType(SBA_MasterAssayRunModel.class)))) {
-                result.setC_ReportableBy(user.getUsername());
-                result.setC_DateReportable(System.currentTimeMillis());
-            }
+            // Stamped for every reportable result, including those on rejected runs
+            result.setC_ReportableBy(user.getUsername());
+            result.setC_DateReportable(System.currentTimeMillis());
         }
 
         recMan.storeChanges();
         return new PluginResult(true);
+    }
+
+    private static boolean isApprovedMasterAssayRun(SBA_MasterAssayRunModel masterAssayRun) {
+        return masterAssayRun != null && Boolean.TRUE.equals(masterAssayRun.getC_Approved());
     }
 
     private static boolean isRejectedMasterAssayRun(SBA_MasterAssayRunModel masterAssayRun) {
