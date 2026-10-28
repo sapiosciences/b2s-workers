@@ -71,17 +71,17 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
         final String controlType; // "QC" or "Standard"
         final String levelName;   // QC Name or Standard Name from the parent
         final double cvPercentLimit;
-        final double flagPctDiff;
+        final Double maxBiasPercent; // level's Max Bias %, else the assay's Max Mean Bias% Across Runs; null if both blank
         final List<SBA_AssayRunControlResultModel> controlResults = new ArrayList<>();
 
         int n;
         double mean;
-        Double percentCv;   // blank when n < 2
-        double percentBias;
-        double nominal;
+        Double percentCv;   // blank when n < 2 or mean is 0
+        Double percentBias; // blank when there's no usable nominal (missing or 0)
+        Double nominal;     // blank when no result in the group has a theoretical value
         boolean withinLimits;
 
-        ControlResultGroup(String analyteName, RecordModel parent) {
+        ControlResultGroup(String analyteName, RecordModel parent, Double assayMaxMeanBiasInter) {
             this.analyteName = analyteName;
             this.parent = parent;
 
@@ -90,7 +90,9 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
             this.controlType = isQc ? CONTROL_TYPE_QC : CONTROL_TYPE_STANDARD;
             this.levelName = (String) parent.getField(isQc ? QC_NAME_FIELD : STANDARD_NAME_FIELD);
             this.cvPercentLimit = ((Number) parent.getField(CV_PERCENT_LIMIT_FIELD)).doubleValue();
-            this.flagPctDiff = ((Number) parent.getField(FLAG_PCT_DIFF_FIELD)).doubleValue();
+            // Max Bias % is optional on the level — fall back to the assay-wide inter-assay limit
+            Number levelMaxBias = (Number) parent.getField(FLAG_PCT_DIFF_FIELD);
+            this.maxBiasPercent = levelMaxBias != null ? Double.valueOf(levelMaxBias.doubleValue()) : assayMaxMeanBiasInter;
         }
     }
 
@@ -170,6 +172,9 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
      */
     private List<ControlResultGroup> buildControlResultGroups(SBA_MasterAssayModel masterAssay)
             throws Throwable {
+        // Assay-wide bias limit, used when a QC/Standard has no Max Bias % of its own
+        Double assayMaxMeanBiasInter = masterAssay.getSBA_AccAndPrecCriteriaInterSBA_MaxMeanBiasInter();
+
         // Collect the controls we care about first so we can load their parents in bulk
         List<SBA_AssayRunControlResultModel> activeControls = new ArrayList<>();
         for (SBA_MasterAssayRunModel run : masterAssay.get(Children.ofType(SBA_MasterAssayRunModel.class))) {
@@ -178,7 +183,9 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
             }
             for (SBA_AssayRunControlResultModel control
                     : run.get(Children.ofType(SBA_AssayRunControlResultModel.class))) {
-                if (Boolean.TRUE.equals(control.getSBA_IsActive())) {
+                // No back-calculated concentration means nothing to aggregate — leave it out of n
+                if (Boolean.TRUE.equals(control.getSBA_IsActive())
+                        && control.getSBA_MeanConcentration() != null) {
                     activeControls.add(control);
                 }
             }
@@ -197,12 +204,16 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
             if (parent == null) {
                 parent = control.get(Parent.ofType(MASTER_ASSAY_STANDARD));
             }
+            // No QC/Standard parent means no level to group under — skip it
+            if (parent == null) {
+                continue;
+            }
 
             String analyteName = control.getSBA_AnalyteName();
             String key = parent.getRecordId() + "|" + analyteName;
             RecordModel finalParent = parent;
             groupsByKey
-                    .computeIfAbsent(key, ignored -> new ControlResultGroup(analyteName, finalParent))
+                    .computeIfAbsent(key, ignored -> new ControlResultGroup(analyteName, finalParent, assayMaxMeanBiasInter))
                     .controlResults.add(control);
         }
 
@@ -211,7 +222,7 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
 
     /**
      * Fill in n / mean / %CV / %Bias / nominal on the group from its control results.
-     * x = SBA_MeanConcentration, nominal = SBA_TheoreticalValue (from the first result).
+     * x = SBA_MeanConcentration, nominal = SBA_TheoreticalValue (first non-blank one).
      */
     private static void computeGroupStats(ControlResultGroup group) {
         List<SBA_AssayRunControlResultModel> results = group.controlResults;
@@ -226,8 +237,8 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
         double mean = sum / n;
         group.mean = mean;
 
-        // Sample stdev needs at least 2 points; otherwise %CV stays blank
-        if (n >= 2) {
+        // Sample stdev needs at least 2 points, and %CV needs a non-zero mean; otherwise %CV stays blank
+        if (n >= 2 && mean != 0) {
             double sumSqDiff = 0;
             for (SBA_AssayRunControlResultModel control : results) {
                 double diff = control.getSBA_MeanConcentration() - mean;
@@ -237,16 +248,27 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
             group.percentCv = (sampleStdev / mean) * 100;
         }
 
-        // %Bias vs the shared theoretical (nominal) value — same for every result in the bucket
-        double nominal = results.get(0).getSBA_TheoreticalValue();
+        // %Bias vs the shared theoretical (nominal) value — take the first one that's filled in
+        Double nominal = null;
+        for (SBA_AssayRunControlResultModel control : results) {
+            if (control.getSBA_TheoreticalValue() != null) {
+                nominal = control.getSBA_TheoreticalValue();
+                break;
+            }
+        }
         group.nominal = nominal;
-        group.percentBias = ((mean - nominal) / nominal) * 100;
+        // A nominal of 0 would divide by zero, so %Bias stays blank
+        if (nominal != null && nominal != 0) {
+            group.percentBias = ((mean - nominal) / nominal) * 100;
+        }
 
-        // Within limits when %CV and |%Bias| both fall under the parent's thresholds.
-        // No %CV (n < 2) means we can't pass the CV check → false.
+        // Within limits when %CV and |%Bias| both fall under the thresholds.
+        // A blank %CV, blank %Bias, or no bias limit at all means we can't confirm the level → false.
         group.withinLimits = group.percentCv != null
                 && group.percentCv < group.cvPercentLimit
-                && Math.abs(group.percentBias) < group.flagPctDiff;
+                && group.percentBias != null
+                && group.maxBiasPercent != null
+                && Math.abs(group.percentBias) < group.maxBiasPercent;
     }
 
     /**
