@@ -38,9 +38,9 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
     private static final String RUN_RESULT_REJECT = "Reject";
 
     private static final String ALREADY_REPORTABLE_MESSAGE =
-            "Result %s is already the reportable result for this sample. Clear it first.";
+            "Result %s is already the reportable result for this sample/analyte. Clear it first.";
     private static final String MISSING_REANALYSIS_REASON_MESSAGE =
-            "The other results for this sample require reanalysis reasons.";
+            "The other results for this sample/analyte require reanalysis reasons.";
     private static final String OVER_DILUTED_BLQ_MESSAGE =
             "This BLQ Result was over-diluted and must be reassayed. It cannot be reported";
     private static final String RUN_NOT_APPROVED_MESSAGE = "This run hasn't been approved yet.";
@@ -96,7 +96,9 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
                     continue;
                 }
                 // Only results for the same analyte compete for reportable
-                if (!Objects.equals(sibling.getSBA_AnalyteName(), result.getSBA_AnalyteName())) {
+                // null and "" are treated as the same analyte, matching MasterAssayRunApprovalHelper
+                if (!StringUtils.defaultString(sibling.getSBA_AnalyteName())
+                        .equals(StringUtils.defaultString(result.getSBA_AnalyteName()))) {
                     continue;
                 }
                 SBA_MasterAssayRunModel siblingMaster =
