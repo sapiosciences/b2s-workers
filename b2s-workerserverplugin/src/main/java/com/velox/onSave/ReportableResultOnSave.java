@@ -25,8 +25,8 @@ import java.util.Objects;
 /**
  * Runs when an Assay Run Sample Result has Is Reportable changed to true.
  *
- * <p>Only one non-rejected sample result under a Sample may be reportable. All other non-rejected
- * siblings must have a Reanalysis Reason. BLQ results that were over-diluted (dilution factor &gt; 1)
+ * <p>Only one non-rejected sample result per analyte under a Sample may be reportable. All other
+ * non-rejected siblings for the same analyte must have a Reanalysis Reason. BLQ results that were over-diluted (dilution factor &gt; 1)
  * cannot be marked reportable. Sibling results under a Master Assay Run with Run Result = Reject are
  * ignored for sibling checks. Reportable By / Date Reportable are only stamped when the current
  * result's Master Assay Run is not Reject.
@@ -85,6 +85,10 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
             for (SBA_AssayRunSampleResultModel sibling :
                     sample.get(Children.ofType(SBA_AssayRunSampleResultModel.class))) {
                 if (Objects.equals(sibling.getRecordId(), result.getRecordId())) {
+                    continue;
+                }
+                // Only results for the same analyte compete for reportable
+                if (!Objects.equals(sibling.getSBA_AnalyteName(), result.getSBA_AnalyteName())) {
                     continue;
                 }
                 SBA_MasterAssayRunModel siblingMaster =
