@@ -226,7 +226,7 @@ public class MasterAssayRunApprovalHelper {
 
     /**
      * When the Master Assay Run's Run Result is Accept, finds Samples under this run that have
-     * exactly one non-rejected Assay Run Sample Result which is not BQL and has dilution factor
+     * exactly one non-rejected Assay Run Sample Result for an analyte which is not BQL and has dilution factor
      * &lt;= 1, and marks that result reportable.
      */
     public void autoMarkLoneEligibleSampleResults(
@@ -266,26 +266,34 @@ public class MasterAssayRunApprovalHelper {
 
         long now = System.currentTimeMillis();
         for (SampleModel sample : samples) {
-            List<SBA_AssayRunSampleResultModel> nonRejected = new ArrayList<>();
+            // Group non-rejected results by analyte so each analyte is checked on its own
+            Map<String, List<SBA_AssayRunSampleResultModel>> nonRejectedByAnalyte =
+                    new LinkedHashMap<>();
             for (SBA_AssayRunSampleResultModel sampleResult :
                     sample.get(Children.ofType(SBA_AssayRunSampleResultModel.class))) {
                 if (!isRejectedMasterAssayRun(
                         sampleResult.get(Parent.ofType(SBA_MasterAssayRunModel.class)))) {
-                    nonRejected.add(sampleResult);
+                    nonRejectedByAnalyte
+                            .computeIfAbsent(
+                                    StringUtils.defaultString(sampleResult.getSBA_AnalyteName()),
+                                    k -> new ArrayList<>())
+                            .add(sampleResult);
                 }
             }
 
-            if (nonRejected.size() != 1) {
-                continue;
-            }
-            SBA_AssayRunSampleResultModel loneResult = nonRejected.get(0);
-            if (!isEligibleForAutoReportable(loneResult)) {
-                continue;
-            }
+            for (List<SBA_AssayRunSampleResultModel> nonRejected : nonRejectedByAnalyte.values()) {
+                if (nonRejected.size() != 1) {
+                    continue;
+                }
+                SBA_AssayRunSampleResultModel loneResult = nonRejected.get(0);
+                if (!isEligibleForAutoReportable(loneResult)) {
+                    continue;
+                }
 
-            loneResult.setC_IsReportable(true);
-            loneResult.setC_ReportableBy(reportableBy);
-            loneResult.setC_DateReportable(now);
+                loneResult.setC_IsReportable(true);
+                loneResult.setC_ReportableBy(reportableBy);
+                loneResult.setC_DateReportable(now);
+            }
         }
     }
 
