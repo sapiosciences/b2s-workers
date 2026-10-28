@@ -26,10 +26,10 @@ import java.util.Objects;
  * Runs when an Assay Run Sample Result has Is Reportable changed to true.
  *
  * <p>Only one non-rejected sample result per analyte under a Sample may be reportable. All other
- * non-rejected siblings for the same analyte must have a Reanalysis Reason. BLQ results that were over-diluted (dilution factor &gt; 1)
- * cannot be marked reportable. Sibling results under a Master Assay Run with Run Result = Reject are
- * ignored for sibling checks. Reportable By / Date Reportable are only stamped when the current
- * result's Master Assay Run is not Reject.
+ * non-rejected siblings for the same analyte must have a Reanalysis Reason. BLQ results that were
+ * over-diluted (dilution factor &gt; 1) cannot be marked reportable. Sibling results under a Master Assay Run with Run Result = Reject are
+ * ignored for sibling checks. Reportable By / Date Reportable are stamped on every result marked
+ * reportable, including results on a rejected run.
  */
 public class ReportableResultOnSave extends DefaultOnSavePlugin {
 
@@ -121,11 +121,9 @@ public class ReportableResultOnSave extends DefaultOnSavePlugin {
                 }
             }
 
-            // Rejected Master Assay Runs still allow Is Reportable, but skip the audit stamps
-            if (!isRejectedMasterAssayRun(result.get(Parent.ofType(SBA_MasterAssayRunModel.class)))) {
-                result.setC_ReportableBy(user.getUsername());
-                result.setC_DateReportable(System.currentTimeMillis());
-            }
+            // Stamped for every reportable result, including those on rejected runs
+            result.setC_ReportableBy(user.getUsername());
+            result.setC_DateReportable(System.currentTimeMillis());
         }
 
         recMan.storeChanges();
