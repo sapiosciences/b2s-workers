@@ -76,9 +76,9 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
 
         int n;
         double mean;
-        Double percentCv;   // blank when n < 2
-        double percentBias;
-        double nominal;
+        Double percentCv;   // blank when n < 2 or mean is 0
+        Double percentBias; // blank when there's no usable nominal (missing or 0)
+        Double nominal;     // blank when no result in the group has a theoretical value
         boolean withinLimits;
 
         ControlResultGroup(String analyteName, RecordModel parent, Double assayMaxMeanBiasInter) {
@@ -183,7 +183,9 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
             }
             for (SBA_AssayRunControlResultModel control
                     : run.get(Children.ofType(SBA_AssayRunControlResultModel.class))) {
-                if (Boolean.TRUE.equals(control.getSBA_IsActive())) {
+                // No back-calculated concentration means nothing to aggregate — leave it out of n
+                if (Boolean.TRUE.equals(control.getSBA_IsActive())
+                        && control.getSBA_MeanConcentration() != null) {
                     activeControls.add(control);
                 }
             }
@@ -202,6 +204,10 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
             if (parent == null) {
                 parent = control.get(Parent.ofType(MASTER_ASSAY_STANDARD));
             }
+            // No QC/Standard parent means no level to group under — skip it
+            if (parent == null) {
+                continue;
+            }
 
             String analyteName = control.getSBA_AnalyteName();
             String key = parent.getRecordId() + "|" + analyteName;
@@ -216,7 +222,7 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
 
     /**
      * Fill in n / mean / %CV / %Bias / nominal on the group from its control results.
-     * x = SBA_MeanConcentration, nominal = SBA_TheoreticalValue (from the first result).
+     * x = SBA_MeanConcentration, nominal = SBA_TheoreticalValue (first non-blank one).
      */
     private static void computeGroupStats(ControlResultGroup group) {
         List<SBA_AssayRunControlResultModel> results = group.controlResults;
@@ -231,8 +237,8 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
         double mean = sum / n;
         group.mean = mean;
 
-        // Sample stdev needs at least 2 points; otherwise %CV stays blank
-        if (n >= 2) {
+        // Sample stdev needs at least 2 points, and %CV needs a non-zero mean; otherwise %CV stays blank
+        if (n >= 2 && mean != 0) {
             double sumSqDiff = 0;
             for (SBA_AssayRunControlResultModel control : results) {
                 double diff = control.getSBA_MeanConcentration() - mean;
@@ -242,15 +248,25 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
             group.percentCv = (sampleStdev / mean) * 100;
         }
 
-        // %Bias vs the shared theoretical (nominal) value — same for every result in the bucket
-        double nominal = results.get(0).getSBA_TheoreticalValue();
+        // %Bias vs the shared theoretical (nominal) value — take the first one that's filled in
+        Double nominal = null;
+        for (SBA_AssayRunControlResultModel control : results) {
+            if (control.getSBA_TheoreticalValue() != null) {
+                nominal = control.getSBA_TheoreticalValue();
+                break;
+            }
+        }
         group.nominal = nominal;
-        group.percentBias = ((mean - nominal) / nominal) * 100;
+        // A nominal of 0 would divide by zero, so %Bias stays blank
+        if (nominal != null && nominal != 0) {
+            group.percentBias = ((mean - nominal) / nominal) * 100;
+        }
 
         // Within limits when %CV and |%Bias| both fall under the thresholds.
-        // No %CV (n < 2) or no bias limit at all means we can't confirm the level → false.
+        // A blank %CV, blank %Bias, or no bias limit at all means we can't confirm the level → false.
         group.withinLimits = group.percentCv != null
                 && group.percentCv < group.cvPercentLimit
+                && group.percentBias != null
                 && group.maxBiasPercent != null
                 && Math.abs(group.percentBias) < group.maxBiasPercent;
     }
