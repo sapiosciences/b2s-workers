@@ -68,7 +68,7 @@ import java.util.stream.Collectors;
  *   <li>Pick Project</li>
  *   <li>Pick destination address (from the sponsor Directory)</li>
  *   <li>Pick Date Needed (with 48-hour / weekend warnings)</li>
- *   <li>Pick Ready vials</li>
+ *   <li>Pick Active or Ready vials</li>
  *   <li>If the pick would leave a Sponsor Lot (or Part) at or below its minimum number of
  *       non-empty vials → warn; status becomes Awaiting B2S Approval instead of Submitted</li>
  *   <li>Review summary → optional file attachment</li>
@@ -84,7 +84,8 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     // On a Part with no Sponsor Lot, this field is the minimum number of non-empty vials to keep.
     private static final String PART_REORDER_LEVEL_FIELD = "ReorderLevelQuantity";
 
-    private static final String SAMPLE_READY = "Ready";
+    // Active is B2S's stored-reagent status (B2S1-47); Ready is kept for B2S1-61's denial release
+    private static final Set<String> SAMPLE_AVAILABLE_STATUSES = Set.of("Active", "Ready");
     private static final String SAMPLE_RESERVED = "Reserved";
 
     private static final long LEAD_TIME_MILLIS = 48L * 60 * 60 * 1000;
@@ -140,11 +141,11 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             confirmDateWarnings(dateNeeded);
             logInfo("Request Shipment: date accepted " + dateNeeded);
 
-            // Only vials still marked Ready are offered
+            // Only vials still Active or Ready are offered
             List<SampleModel> readySamples = loadReadySamples(project);
             logInfo("Request Shipment: Ready samples offered " + readySamples.size());
             if (readySamples.isEmpty()) {
-                clientCallback.displayError("There are no available (Ready) vials on this project to request.");
+                clientCallback.displayError("There are no available (Active or Ready) vials on this project to request.");
                 return new PluginResult(true);
             }
             List<SampleModel> selectedSamples = promptForSamples(readySamples);
@@ -300,21 +301,30 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         }
     }
 
-    /** Ready vials under the Project, directly or through its Studies. Access control limits sponsors to their own. */
+    /** Active or Ready vials under the Project, directly or through its Studies or Sponsor Lots. Access control limits sponsors to their own. */
     private List<SampleModel> loadReadySamples(ProjectModel project) throws Throwable {
         relationshipMan.loadChildren(project, SampleModel.class);
         relationshipMan.loadChildren(project, StudyModel.class);
+        relationshipMan.loadChildren(project, C_SponsorLotModel.class);
         List<StudyModel> studies = new ArrayList<>(project.get(Children.ofType(StudyModel.class)));
         if (!studies.isEmpty()) {
             relationshipMan.loadChildren(studies, SampleModel.class);
+        }
+        // Create Sponsor Lot files vials under the lot, not the Project
+        List<C_SponsorLotModel> lots = new ArrayList<>(project.get(Children.ofType(C_SponsorLotModel.class)));
+        if (!lots.isEmpty()) {
+            relationshipMan.loadChildren(lots, SampleModel.class);
         }
 
         Set<SampleModel> samples = new LinkedHashSet<>(project.get(Children.ofType(SampleModel.class)));
         for (StudyModel study : studies) {
             samples.addAll(study.get(Children.ofType(SampleModel.class)));
         }
+        for (C_SponsorLotModel lot : lots) {
+            samples.addAll(lot.get(Children.ofType(SampleModel.class)));
+        }
         return samples.stream()
-                .filter(sample -> SAMPLE_READY.equals(sample.getExemplarSampleStatus()))
+                .filter(sample -> SAMPLE_AVAILABLE_STATUSES.contains(sample.getExemplarSampleStatus()))
                 .collect(Collectors.toList());
     }
 
@@ -576,7 +586,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         List<String> unavailable = new ArrayList<>();
         for (DataRecord record : current) {
             String status = record.getStringVal(SampleModel.EXEMPLAR_SAMPLE_STATUS, user);
-            if (!SAMPLE_READY.equals(status)) {
+            if (!SAMPLE_AVAILABLE_STATUSES.contains(status)) {
                 unavailable.add(record.getStringVal(SampleModel.SAMPLE_ID, user) + " (" + status + ")");
             }
         }
