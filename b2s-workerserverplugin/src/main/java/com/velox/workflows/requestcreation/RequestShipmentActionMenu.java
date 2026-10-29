@@ -10,6 +10,7 @@ import com.velox.RemoteIconUtil;
 import com.velox.api.access.AccessType;
 import com.velox.api.clientcallback.DataRecordSelectionCriteria;
 import com.velox.api.clientcallback.InputDialogCriteria;
+import com.velox.api.clientcallback.ReadFileDialogCriteria;
 import com.velox.api.datarecord.DataRecord;
 import com.velox.api.datatype.DataTypeDefinition;
 import com.velox.api.datatype.TemporaryDataType;
@@ -21,26 +22,37 @@ import com.velox.api.plugin.invocation.ActionMenuPlugin;
 import com.velox.api.plugin.invocation.context.ActionMenuContext;
 import com.velox.api.plugin.invocation.context.OnActionMenuContext;
 import com.velox.api.util.InputDialogResult;
+import com.velox.managers.ShipmentRequisitionManager;
+import com.velox.plugin.materialsmanagement.pojo.ConsumableItem;
+import com.velox.plugin.materialsmanagement.pojo.descriptor.ItemDescriptor;
+import com.velox.plugin.materialsmanagement.pojo.descriptor.ParentDescriptor;
+import com.velox.recordmodels.AttachmentModel;
 import com.velox.recordmodels.C_SponsorAddressModel;
 import com.velox.recordmodels.C_SponsorContactModel;
+import com.velox.recordmodels.C_SponsorLotModel;
 import com.velox.recordmodels.DirectoryModel;
 import com.velox.recordmodels.ProjectModel;
 import com.velox.recordmodels.RequestModel;
 import com.velox.recordmodels.SampleModel;
 import com.velox.recordmodels.StudyModel;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.ExemplarVeloxServerPlugin;
+import com.velox.sapio.commons.exemplar.recordmodel.attachment.AttachmentData;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Child;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.exemplar.recordmodel.util.RecordModelUtil;
+import com.velox.sapio.commons.utils.StreamingUtil;
 import org.apache.commons.lang3.StringUtils;
 
+import java.io.File;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -50,18 +62,27 @@ import java.util.stream.Collectors;
 /**
  * B2S1-243: main-menu button that lets a sponsor raise a shipment requisition.
  *
- * <p>Runs as a sequence of dialogs and creates nothing until the final submit, so the Request is never saved
- * half-filled: project → destination (the sponsor's saved addresses) → date needed (48-hour / weekend warnings)
- * → vials (Ready only) → review → one commit that creates the Request as a Submitted Shipment Requisition,
- * adds the vials under it, marks them Reserved (B2S1-61) and links the raising user's Sponsor Contact.
+ * <p>Wizard-style flow — nothing is written until the very end, so a cancel mid-way leaves no
+ * half-built Request. Typical order:
+ * <ol>
+ *   <li>Pick Project</li>
+ *   <li>Pick destination address (from the sponsor Directory)</li>
+ *   <li>Pick Date Needed (with 48-hour / weekend warnings)</li>
+ *   <li>Pick Ready vials</li>
+ *   <li>If the pick would leave a Sponsor Lot (or Part) at or below its minimum number of
+ *       non-empty vials → warn; status becomes Awaiting B2S Approval instead of Submitted</li>
+ *   <li>Review summary → optional file attachment</li>
+ *   <li>One commit: create Request, move vials off the lot onto the Request, mark them Reserved</li>
+ * </ol>
  */
 public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionMenuContext>
         implements ActionMenuPlugin {
 
     private static final String REQUEST_TYPE_SHIPMENT_REQUISITION = "Shipment Requisition";
-    private static final String REQUISITION_STATUS_SUBMITTED = "Submitted";
     // Same value the OOTB request portal uses when existing samples are selected.
     private static final String ADD_SAMPLES_METHOD_SELECT_EXISTING = "Selected Samples from Exemplar BioBank";
+    // On a Part with no Sponsor Lot, this field is the minimum number of non-empty vials to keep.
+    private static final String PART_REORDER_LEVEL_FIELD = "ReorderLevelQuantity";
 
     private static final String SAMPLE_READY = "Ready";
     private static final String SAMPLE_RESERVED = "Reserved";
@@ -99,9 +120,11 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     @Override
     protected PluginResult run(ActionMenuContext ctx) throws Throwable {
         try {
+            // --- Step through the wizard; cancel at any dialog throws and we exit cleanly ---
             ProjectModel project = promptForProject();
             logInfo("Request Shipment: project " + project.getRecordId());
 
+            // Addresses live on the sponsor's Directory (parent of the Project)
             DirectoryModel sponsorDirectory = loadSponsorDirectory(project);
             List<C_SponsorAddressModel> addresses = loadActiveAddresses(sponsorDirectory);
             logInfo("Request Shipment: sponsor Directory " + (sponsorDirectory == null ? "none" : sponsorDirectory.getRecordId())
@@ -117,6 +140,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             confirmDateWarnings(dateNeeded);
             logInfo("Request Shipment: date accepted " + dateNeeded);
 
+            // Only vials still marked Ready are offered
             List<SampleModel> readySamples = loadReadySamples(project);
             logInfo("Request Shipment: Ready samples offered " + readySamples.size());
             if (readySamples.isEmpty()) {
@@ -129,14 +153,20 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                 return new PluginResult(true);
             }
 
+            // Submitted normally; Awaiting B2S Approval if this pick would leave too few non-empty vials
+            String requisitionStatus = resolveRequisitionStatusForSelection(selectedSamples);
             confirmReview(project, destination, dateNeeded, selectedSamples);
+            // Re-check Ready in case another user grabbed a vial while dialogs were open
             rejectIfNoLongerReady(selectedSamples);
 
-            RequestModel request = createRequisition(project, destination, dateNeeded, selectedSamples);
+            PendingAttachment pendingAttachment = promptOptionalAttachment();
+            RequestModel request = createRequisition(
+                    project, destination, dateNeeded, selectedSamples, requisitionStatus, pendingAttachment);
+            // Single commit — Request, vial moves, reservation, and optional attachment together
             recMan.storeAndCommit("Created shipment requisition with " + selectedSamples.size() + " vial(s)");
             return new PluginResult(true, new DataRecordFormDirective(request.getDataRecord()));
         } catch (UserRequestedCancelServerException e) {
-            // Cancelled at any step: nothing has been created.
+            // User cancelled a dialog: nothing was committed, so there is no orphan Request
             logInfo("Request Shipment: ended without creating a request");
             return new PluginResult(true);
         }
@@ -294,6 +324,230 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         return mapSelection(selection, readySamples);
     }
 
+    /**
+     * Submitted unless removing the selection would leave a Sponsor Lot (or, if none, its Part) at or
+     * below its minimum threshold. In that case the user must confirm, and the request starts as
+     * Awaiting B2S Approval. Samples with neither a Sponsor Lot nor a consumable Part parent are skipped.
+     */
+    private String resolveRequisitionStatusForSelection(List<SampleModel> selectedSamples) throws Throwable {
+        List<String> breachMessages = findMinimumThresholdBreaches(selectedSamples);
+        if (breachMessages.isEmpty()) {
+            return ShipmentRequisitionManager.STATUS_SUBMITTED;
+        }
+
+        String message = "This shipment would leave a Sponsor Lot or Part at or below its minimum number of non-empty vials:\n\n"
+                + String.join("\n", breachMessages)
+                + "\n\nIf you continue, the request will be created as "
+                + ShipmentRequisitionManager.STATUS_AWAITING_B2S_APPROVAL
+                + " and will need B2S approval before it can proceed.\n\nContinue?";
+        if (!clientCallback.showYesNoDialog("Minimum Threshold Warning", message, false)) {
+            throw new UserRequestedCancelServerException();
+        }
+        return ShipmentRequisitionManager.STATUS_AWAITING_B2S_APPROVAL;
+    }
+
+    /**
+     * Figures out which Sponsor Lots (or Parts, if no lot) would fall to/below their minimum
+     * if the selected vials were removed. Returns human-readable breach lines for the warning dialog.
+     * Does not change any records — this is a what-if check only.
+     */
+    private List<String> findMinimumThresholdBreaches(List<SampleModel> selectedSamples) throws Throwable {
+        relationshipMan.loadParents(selectedSamples, C_SponsorLotModel.class);
+
+        // Group the selection by Sponsor Lot; vials with no lot go to the Part fallback list
+        Map<Long, C_SponsorLotModel> lotsById = new LinkedHashMap<>();
+        Map<Long, List<SampleModel>> selectedByLotId = new HashMap<>();
+        List<SampleModel> samplesWithoutLot = new ArrayList<>();
+
+        for (SampleModel sample : selectedSamples) {
+            C_SponsorLotModel lot = sample.get(Parent.ofType(C_SponsorLotModel.class));
+            if (lot == null) {
+                samplesWithoutLot.add(sample);
+                continue;
+            }
+            lotsById.putIfAbsent(lot.getRecordId(), lot);
+            selectedByLotId.computeIfAbsent(lot.getRecordId(), ignored -> new ArrayList<>()).add(sample);
+        }
+
+        List<String> breaches = new ArrayList<>();
+        if (!lotsById.isEmpty()) {
+            List<C_SponsorLotModel> lots = new ArrayList<>(lotsById.values());
+            relationshipMan.loadChildren(lots, SampleModel.class);
+            for (C_SponsorLotModel lot : lots) {
+                Double threshold = lot.getC_MinimumThreshold();
+                // Null threshold → no check for this lot (zero is still a real threshold)
+                if (threshold == null) {
+                    continue;
+                }
+                // Remaining = non-empty child vials still on the lot after this pick.
+                // Threshold is a vial count (25% of the non-empty vials allocated at creation).
+                Set<Long> selectedIds = selectedByLotId.getOrDefault(lot.getRecordId(), List.of()).stream()
+                        .map(SampleModel::getRecordId)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                int remaining = countNonEmptyExcluding(
+                        lot.get(Children.ofType(SampleModel.class)), selectedIds);
+                if (remaining <= threshold) {
+                    breaches.add(formatBreachLine(
+                            "Sponsor Lot",
+                            StringUtils.defaultIfBlank(lot.getDataRecordName(), String.valueOf(lot.getRecordId())),
+                            remaining,
+                            threshold));
+                }
+            }
+        }
+
+        // Vials not under a lot: try the consumable Part's minimum instead
+        breaches.addAll(findPartMinimumThresholdBreaches(samplesWithoutLot));
+        return breaches;
+    }
+
+    /**
+     * For selected vials with no Sponsor Lot: resolve the materials-management Part parent and compare
+     * remaining non-empty child vials to {@link #PART_REORDER_LEVEL_FIELD}. Skip when there is no Part.
+     */
+    private List<String> findPartMinimumThresholdBreaches(List<SampleModel> samplesWithoutLot) throws Throwable {
+        if (samplesWithoutLot.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, List<SampleModel>> samplesByPartType = new HashMap<>();
+        Map<SampleModel, String> partTypeBySample = new HashMap<>();
+        for (SampleModel sample : samplesWithoutLot) {
+            String partDataType = resolvePartDataType(sample);
+            if (StringUtils.isBlank(partDataType)) {
+                continue;
+            }
+            partTypeBySample.put(sample, partDataType);
+            samplesByPartType.computeIfAbsent(partDataType, ignored -> new ArrayList<>()).add(sample);
+        }
+        if (samplesByPartType.isEmpty()) {
+            return List.of();
+        }
+
+        for (Map.Entry<String, List<SampleModel>> entry : samplesByPartType.entrySet()) {
+            relationshipMan.loadParents(entry.getValue(), entry.getKey());
+        }
+
+        Map<String, RecordModel> partsByKey = new LinkedHashMap<>();
+        Map<String, List<SampleModel>> selectedByPartKey = new HashMap<>();
+        for (SampleModel sample : samplesWithoutLot) {
+            String partDataType = partTypeBySample.get(sample);
+            if (partDataType == null) {
+                continue;
+            }
+            RecordModel part = sample.get(Parent.ofType(partDataType));
+            if (part == null || part.getRecordId() == null) {
+                continue;
+            }
+            String partKey = partDataType + ":" + part.getRecordId();
+            partsByKey.putIfAbsent(partKey, part);
+            selectedByPartKey.computeIfAbsent(partKey, ignored -> new ArrayList<>()).add(sample);
+        }
+        if (partsByKey.isEmpty()) {
+            return List.of();
+        }
+
+        // Parts may be different data types; load Sample children per distinct part type.
+        Map<String, List<RecordModel>> partsByType = new HashMap<>();
+        for (RecordModel part : partsByKey.values()) {
+            partsByType.computeIfAbsent(part.getDataTypeName(), ignored -> new ArrayList<>()).add(part);
+        }
+        for (List<RecordModel> parts : partsByType.values()) {
+            relationshipMan.loadChildren(parts, SampleModel.class);
+        }
+
+        List<String> breaches = new ArrayList<>();
+        for (Map.Entry<String, RecordModel> entry : partsByKey.entrySet()) {
+            RecordModel part = entry.getValue();
+            Double threshold = toDouble(part.getField(PART_REORDER_LEVEL_FIELD));
+            if (threshold == null) {
+                continue;
+            }
+            Set<Long> selectedIds = selectedByPartKey.getOrDefault(entry.getKey(), List.of()).stream()
+                    .map(SampleModel::getRecordId)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            int remaining = countNonEmptyExcluding(
+                    part.get(Children.ofType(SampleModel.class)), selectedIds);
+            if (remaining <= threshold) {
+                Object partName = part.getField("DataRecordName");
+                breaches.add(formatBreachLine(
+                        "Part",
+                        StringUtils.defaultIfBlank(
+                                partName == null ? null : partName.toString(),
+                                String.valueOf(part.getRecordId())),
+                        remaining,
+                        threshold));
+            }
+        }
+        return breaches;
+    }
+
+    /**
+     * Asks materials management: "what Part data type is this sample an item of?"
+     * Returns that type name so we can load Parent.ofType(...), or null if it isn't a consumable item.
+     */
+    private String resolvePartDataType(SampleModel sample) {
+        try {
+            ConsumableItem item = ConsumableItem.toItem(sample, exemplarContext);
+            if (item == null) {
+                return null;
+            }
+            ItemDescriptor itemDescriptor = item.getDescriptor();
+            if (itemDescriptor == null) {
+                return null;
+            }
+            ParentDescriptor parentDescriptor = itemDescriptor.getParentDescriptor();
+            return parentDescriptor == null ? null : parentDescriptor.getDataTypeName();
+        } catch (Throwable t) {
+            logInfo("Request Shipment: could not resolve consumable Part type for sample "
+                    + sample.getRecordId() + ": " + t.getMessage());
+            return null;
+        }
+    }
+
+    // Non-empty vials still present after skipping the ones being requested. Volume > 0 counts as non-empty.
+    private static int countNonEmptyExcluding(Iterable<SampleModel> samples, Set<Long> excludedRecordIds) {
+        int count = 0;
+        for (SampleModel sample : samples) {
+            if (sample.getRecordId() != null && excludedRecordIds.contains(sample.getRecordId())) {
+                continue;
+            }
+            Double volume = sample.getVolume();
+            if (volume != null && volume > 0.0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static Double toDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && StringUtils.isNotBlank(text)) {
+            try {
+                return Double.parseDouble(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static String formatBreachLine(String kind, String name, int remaining, double threshold) {
+        String vials = remaining == 1 ? "non-empty vial" : "non-empty vials";
+        return "- " + kind + " " + name + ": " + remaining + " " + vials
+                + " would remain (minimum " + formatCount(threshold) + ")";
+    }
+
+    // Whole numbers print without a trailing ".0" (a threshold of 8, not 8.0).
+    private static String formatCount(double value) {
+        if (!Double.isInfinite(value) && value == Math.rint(value)) {
+            return Long.toString((long) value);
+        }
+        return Double.toString(value);
+    }
+
     private void confirmReview(ProjectModel project, C_SponsorAddressModel destination, long dateNeeded,
                                List<SampleModel> selectedSamples) throws Throwable {
         String sampleList = selectedSamples.stream()
@@ -333,31 +587,101 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         }
     }
 
+    /**
+     * Optional single-file attachment. No → skip. Yes → file picker; canceling the picker also skips.
+     */
+    private PendingAttachment promptOptionalAttachment() throws Throwable {
+        boolean addFile = clientCallback.showYesNoDialog(
+                "Add Attachment",
+                "Would you like to attach an optional file to this request?",
+                false);
+        if (!addFile) {
+            return null;
+        }
+
+        String filePath = clientCallback.showFileDialog(ReadFileDialogCriteria.builder()
+                .title("Select a file to attach")
+                .build());
+        if (StringUtils.isBlank(filePath) || clientCallback.isAborted()) {
+            return null;
+        }
+
+        byte[] fileBytes = StreamingUtil.readBytesFromUser(filePath, exemplarContext);
+        if (fileBytes == null || fileBytes.length == 0) {
+            clientCallback.displayError("Could not read the selected file. The request will be created without an attachment.");
+            return null;
+        }
+        return new PendingAttachment(new File(filePath).getName(), fileBytes);
+    }
+
+    /**
+     * Builds the new Request in memory (not committed yet): fields, Project link, unhook vials from
+     * their Sponsor Lots, hang them under the Request as Reserved, optional Attachment, Sponsor Contact.
+     */
     private RequestModel createRequisition(ProjectModel project, C_SponsorAddressModel destination, long dateNeeded,
-                                           List<SampleModel> selectedSamples) throws Throwable {
+                                           List<SampleModel> selectedSamples, String requisitionStatus,
+                                           PendingAttachment pendingAttachment)
+            throws Throwable {
         RequestModel request = instMan.addNewRecord(RequestModel.class);
         request.setC_RequestType(REQUEST_TYPE_SHIPMENT_REQUISITION);
-        // B2S1-244's RequisitionStatusOnSave allows a new requisition only to start as Submitted.
-        request.setC_RequisitionStatus(REQUISITION_STATUS_SUBMITTED);
+        // Status was decided earlier (Submitted vs Awaiting B2S Approval); OnSave allows either from blank
+        request.setC_RequisitionStatus(requisitionStatus);
         request.setNumberOfSamples((long) selectedSamples.size());
         request.setAddSamplesMethod(ADD_SAMPLES_METHOD_SELECT_EXISTING);
         request.setRequestDate(System.currentTimeMillis());
         request.setC_DateNeeded(dateNeeded);
         request.setC_Destination(destination.getRecordId());
-        // Copied so the request keeps the address even if the saved address is later edited or retired.
+        // Snapshot of the address text so later edits/retirements of the saved address don't rewrite history
         request.setC_DestinationAddress(formatAddress(destination));
         project.add(Child.ref(request));
 
+        // Unlink selected vials from their Sponsor Lot — they belong to the Request from here on
+        relationshipMan.loadParents(selectedSamples, C_SponsorLotModel.class);
+        Map<Long, C_SponsorLotModel> lotsById = new LinkedHashMap<>();
+        Map<Long, List<SampleModel>> samplesByLotId = new HashMap<>();
+        for (SampleModel sample : selectedSamples) {
+            C_SponsorLotModel lot = sample.get(Parent.ofType(C_SponsorLotModel.class));
+            if (lot == null || lot.getRecordId() == null) {
+                continue;
+            }
+            lotsById.putIfAbsent(lot.getRecordId(), lot);
+            samplesByLotId.computeIfAbsent(lot.getRecordId(), ignored -> new ArrayList<>()).add(sample);
+        }
+        for (Map.Entry<Long, List<SampleModel>> entry : samplesByLotId.entrySet()) {
+            lotsById.get(entry.getKey()).remove(Children.refs(entry.getValue()));
+        }
+
+        // Request → vials, and mark them Reserved so nobody else can pick them
         for (SampleModel sample : selectedSamples) {
             request.add(Child.ref(sample));
             sample.setExemplarSampleStatus(SAMPLE_RESERVED);
         }
 
+        // Optional file the user picked earlier → Attachment child of the Request
+        if (pendingAttachment != null) {
+            AttachmentModel attachment = instMan.addNewRecord(AttachmentModel.class);
+            attachment.setFilePath(pendingAttachment.fileName);
+            attachment.set(AttachmentData.bytes(pendingAttachment.bytes));
+            request.add(Child.ref(attachment));
+        }
+
+        // Link the raising user's Sponsor Contact when we can find one
         C_SponsorContactModel sponsorContact = loadSponsorContactForCurrentUser();
         if (sponsorContact != null) {
             sponsorContact.add(Child.ref(request));
         }
         return request;
+    }
+
+    // Holds file bytes in memory until createRequisition turns them into an Attachment record
+    private static final class PendingAttachment {
+        private final String fileName;
+        private final byte[] bytes;
+
+        private PendingAttachment(String fileName, byte[] bytes) {
+            this.fileName = fileName;
+            this.bytes = bytes;
+        }
     }
 
     /** Same lookup as B2S1-247's CreateSubmission: the contact whose username matches the current user. */

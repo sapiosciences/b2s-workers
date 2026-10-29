@@ -19,22 +19,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * B2S1-244: block illegal Shipment Requisition status changes on save.
+ * B2S1-244: gatekeeper for Shipment Requisition status changes on save.
+ *
+ * <p>Whenever someone saves a Request and changes Requisition Status, this plugin:
+ * <ol>
+ *   <li>Checks whether that user's group is allowed to make that move (unless Sapio Admin)</li>
+ *   <li>May prompt for a Denial Reason or an e-signature along the way</li>
+ *   <li>Sends email / in-app alerts for certain new statuses (Submitted, awaiting approvals, Shipped)</li>
+ * </ol>
+ * The actual rules and notification logic live in {@link ShipmentRequisitionManager}.
  */
 public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
 
-    // Filled by shouldRun — Requests whose Requisition Status just changed
+    // Filled by shouldRun — only the Requests whose Requisition Status field just changed
     private List<RequestModel> changedRequests;
 
     @Override
     protected boolean shouldRun(OnSaveContext ctx) throws Throwable {
-        // Only Shipment Requisitions where status actually changed
+        // Walk everything in this save and keep only Shipment Requisitions whose status changed
         List<DataRecord> requestRecords = new ArrayList<>();
         for (DataRecord record : ctx.getDataRecordList()) {
             if (!RequestModel.DATA_TYPE_NAME.equals(record.getDataTypeName())
                     || !record.isChanged(RequestModel.C___REQUISITION_STATUS)) {
                 continue;
             }
+            // Ignore other Request types (e.g. sample submissions)
             if (!ShipmentRequisitionManager.REQUEST_TYPE_SHIPMENT_REQUISITION.equals(
                     record.getStringVal(RequestModel.C___REQUEST_TYPE, user))) {
                 continue;
@@ -42,7 +51,7 @@ public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
             requestRecords.add(record);
         }
 
-        // Need a live UI session for error popups / denial-reason prompt
+        // No matching requests, or no UI session (can't show dialogs) → skip this plugin
         if (requestRecords.isEmpty() || clientCallback == null) {
             return false;
         }
@@ -52,47 +61,64 @@ public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
 
     @Override
     protected PluginResult run(OnSaveContext ctx) throws Throwable {
+        // Active Sapio group for the user doing the save — drives who is allowed to change status
         String groupName = user.getUserGroup().getGroupName();
+        // Sapio Admin bypasses the transition rules (still gets notifications below)
         boolean isAdmin = ShipmentRequisitionManager.GROUP_SAPIO_ADMIN.equals(groupName);
 
-        // Pass this plugin's clientCallback so dialogs work in OnSave
+        // Must use this OnSave's clientCallback so denial / e-sign dialogs actually appear
         ShipmentRequisitionManager requisitionMan =
                 new ShipmentRequisitionManager(clientCallback, exemplarContext);
 
         try {
             if (!isAdmin) {
-                // Box rules need child shipment boxes loaded first
+                // Shipped / Delivered rules look at child boxes, so load them before validating
                 relationshipMan.loadChildren(changedRequests, C_ShipmentBoxModel.class);
                 List<String> errors = requisitionMan.validateRequests(changedRequests, groupName);
                 if (!errors.isEmpty()) {
+                    // Illegal move → show the errors and abort the whole save
                     clientCallback.displayError(String.join("\n", errors));
                     return new PluginResult(false);
                 }
             }
 
+            // Bucket requests by the status they just landed in, so we know whom to notify
             List<RequestModel> submittedRequests = new ArrayList<>();
+            List<RequestModel> awaitingB2SRequests = new ArrayList<>();
+            List<RequestModel> awaitingSponsorRequests = new ArrayList<>();
             List<RequestModel> shippedRequests = new ArrayList<>();
             for (RequestModel request : changedRequests) {
-                if (ShipmentRequisitionManager.STATUS_SUBMITTED.equals(request.getC_RequisitionStatus())) {
+                String status = request.getC_RequisitionStatus();
+                if (ShipmentRequisitionManager.STATUS_SUBMITTED.equals(status)) {
                     submittedRequests.add(request);
-                } else if (ShipmentRequisitionManager.STATUS_SHIPPED.equals(request.getC_RequisitionStatus())) {
+                } else if (ShipmentRequisitionManager.STATUS_AWAITING_B2S_APPROVAL.equals(status)) {
+                    awaitingB2SRequests.add(request);
+                } else if (ShipmentRequisitionManager.STATUS_AWAITING_SPONSOR_APPROVAL.equals(status)) {
+                    awaitingSponsorRequests.add(request);
+                } else if (ShipmentRequisitionManager.STATUS_SHIPPED.equals(status)) {
                     shippedRequests.add(request);
                 }
             }
 
-            // Only after every transition in this save has been accepted (or admin bypass).
+            // Alerts only after every transition in this save was accepted (or admin bypassed checks)
             if (!submittedRequests.isEmpty()) {
                 requisitionMan.notifySubmitted(submittedRequests);
+            }
+            if (!awaitingB2SRequests.isEmpty()) {
+                requisitionMan.notifyAwaitingB2SApproval(awaitingB2SRequests);
+            }
+            if (!awaitingSponsorRequests.isEmpty()) {
+                requisitionMan.notifyAwaitingSponsorApproval(awaitingSponsorRequests);
             }
             if (!shippedRequests.isEmpty()) {
                 requisitionMan.notifyShipped(shippedRequests);
             }
 
-            // Persist any Denial Reason we just collected on the requests
+            // Write any Denial Reason collected during validation onto the ongoing save
             recMan.storeChanges();
             return new PluginResult(true);
         } catch (UserRequestedCancelServerException e) {
-            // User cancelled the denial-reason dialog
+            // User backed out of the denial-reason or e-sign dialog → cancel the save
             return new PluginResult(false);
         }
     }

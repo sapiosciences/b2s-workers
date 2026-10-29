@@ -15,6 +15,8 @@ import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.portal.VeloxApp;
 import com.velox.api.session.SessionManager;
+import com.velox.api.system.SystemLogESignLoggingRequest;
+import com.velox.api.user.ESignAuthentication;
 import com.velox.api.user.User;
 import com.velox.api.user.UserGroup;
 import com.velox.api.user.UserGroupInfo;
@@ -42,6 +44,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,19 +52,32 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Rules and helpers for Shipment Requisition status changes (B2S1-244).
+ * Shared rules and helpers for Shipment Requisition status changes (B2S1-244).
+ *
+ * <p>Used by {@code RequisitionStatusOnSave}. In one place this class:
+ * <ul>
+ *   <li>Decides which group can move a request from status A to status B</li>
+ *   <li>Prompts for Denial Reason or e-signature when those moves require it</li>
+ *   <li>Sends email + in-app notifications when requests land in certain statuses</li>
+ * </ul>
  */
 public class ShipmentRequisitionManager {
 
     public static final String REQUEST_TYPE_SHIPMENT_REQUISITION = "Shipment Requisition";
 
+    // --- Sapio user groups that appear in the status rules ---
     public static final String GROUP_SAPIO_ADMIN = "Sapio Admin";
+    public static final String GROUP_B2S_ADMIN = "B2S Admin";
     public static final String GROUP_LOGISTICS = "Logistics";
     public static final String GROUP_PROJECT_COORDINATOR = "Project Coordinator";
+    public static final String GROUP_PRINCIPAL_INVESTIGATOR = "Principal Investigator";
     public static final String GROUP_SPONSOR_APPROVER = "Sponsor Approver";
 
+    // --- Allowed values of Request.C_RequisitionStatus ---
     public static final String STATUS_SUBMITTED = "Submitted";
     public static final String STATUS_UNDER_REVIEW = "Under Review";
+    public static final String STATUS_AWAITING_B2S_APPROVAL = "Awaiting B2S Approval";
+    public static final String STATUS_AWAITING_SPONSOR_APPROVAL = "Awaiting Sponsor Approval";
     public static final String STATUS_APPROVED = "Approved";
     public static final String STATUS_IN_FULFILMENT = "In Fulfilment";
     public static final String STATUS_SHIPPED = "Shipped";
@@ -74,9 +90,16 @@ public class ShipmentRequisitionManager {
 
     private static final String DENIAL_REASON_REQUIRED_MESSAGE =
             "Please choose a Denial Reason before denying a request";
+    private static final String ESIGN_REQUIRED_MESSAGE =
+            "An electronic signature is required to approve this request";
+    private static final String ESIGN_TITLE = "Electronic Signature";
 
+    // Groups that can start review / fulfilment / close
     private static final Set<String> LOGISTICS_OR_COORDINATOR =
             Set.of(GROUP_LOGISTICS, GROUP_PROJECT_COORDINATOR);
+    // Groups that can leave "Awaiting B2S Approval" (approve or deny)
+    private static final Set<String> B2S_APPROVER_GROUPS =
+            Set.of(GROUP_PRINCIPAL_INVESTIGATOR, GROUP_B2S_ADMIN);
 
     private static final DateTimeFormatter DATE_NEEDED_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.systemDefault());
@@ -101,18 +124,20 @@ public class ShipmentRequisitionManager {
     }
 
     /**
-     * Checks every request in the save. Asks for a denial reason when needed.
+     * Walks every status-changed request in the save.
+     * For each one: maybe ask for a denial reason, check the move is legal, maybe collect an e-sign.
      *
      * @return one error line per illegal change, or an empty list if all are allowed
      */
     public List<String> validateRequests(List<RequestModel> requests, String groupName) throws Throwable {
         List<String> errors = new ArrayList<>();
         for (RequestModel request : requests) {
+            // "From" = what was last committed; "to" = what the user is trying to save now
             Object lastSaved = request.getDataRecord().getLastSavedValue(RequestModel.C___REQUISITION_STATUS);
             String previousStatus = lastSaved == null ? null : lastSaved.toString();
             String newStatus = request.getC_RequisitionStatus();
 
-            // Denying with no reason yet → ask the user before we decide.
+            // Denying with no reason yet → pop a dialog and fill Denial Reason before we decide
             if (needsDenialReasonPrompt(previousStatus, newStatus, groupName, request)) {
                 promptForDenialReason(request);
             }
@@ -120,13 +145,20 @@ public class ShipmentRequisitionManager {
             String error = validateTransition(request, previousStatus, newStatus, groupName);
             if (error != null) {
                 errors.add(error);
+                continue; // Don't bother with e-sign for an illegal move
+            }
+
+            // Legal approval steps that advance the chain still need an e-signature
+            if (needsApprovalESign(previousStatus, newStatus)) {
+                promptForApprovalESign(request, previousStatus, newStatus);
             }
         }
         return errors;
     }
 
     /**
-     * Checks one status move against the group / box rules.
+     * Pure rule check for one from→to status move for one group.
+     * Does not show dialogs — denial reason / e-sign are handled by {@link #validateRequests}.
      *
      * @return an error message if not allowed, or null if it is fine
      */
@@ -136,17 +168,43 @@ public class ShipmentRequisitionManager {
         String to = normalizeStatus(newStatus);
 
         boolean allowed;
-        // New requisition: blank → Submitted (anyone)
-        if (from.isEmpty() && STATUS_SUBMITTED.equals(to)) {
+        // Brand-new request: blank → Submitted or Awaiting B2S Approval (anyone may create these)
+        if (from.isEmpty()
+                && (STATUS_SUBMITTED.equals(to) || STATUS_AWAITING_B2S_APPROVAL.equals(to))) {
             allowed = true;
         // Start review: Submitted → Under Review (Logistics / Project Coordinator)
         } else if (STATUS_SUBMITTED.equals(from) && STATUS_UNDER_REVIEW.equals(to)) {
             allowed = LOGISTICS_OR_COORDINATOR.contains(groupName);
-        // Approve: Submitted or Under Review → Approved (Sponsor Approver)
+        // B2S approve: Awaiting B2S Approval → Awaiting Sponsor Approval (PI / B2S Admin; e-sign later)
+        } else if (STATUS_AWAITING_B2S_APPROVAL.equals(from)
+                && STATUS_AWAITING_SPONSOR_APPROVAL.equals(to)) {
+            allowed = B2S_APPROVER_GROUPS.contains(groupName);
+        // B2S deny: Awaiting B2S Approval → Denied (same groups; Denial Reason required)
+        } else if (STATUS_AWAITING_B2S_APPROVAL.equals(from) && STATUS_DENIED.equals(to)) {
+            if (!B2S_APPROVER_GROUPS.contains(groupName)) {
+                allowed = false;
+            } else if (StringUtils.isBlank(request.getC_DenialReason())) {
+                return requestLabel(request) + ": " + DENIAL_REASON_REQUIRED_MESSAGE;
+            } else {
+                allowed = true;
+            }
+        // Sponsor approve: Awaiting Sponsor Approval → Approved (Sponsor Approver; e-sign later)
+        } else if (STATUS_AWAITING_SPONSOR_APPROVAL.equals(from) && STATUS_APPROVED.equals(to)) {
+            allowed = GROUP_SPONSOR_APPROVER.equals(groupName);
+        // Sponsor deny from awaiting: Awaiting Sponsor Approval → Denied (Sponsor Approver + reason)
+        } else if (STATUS_AWAITING_SPONSOR_APPROVAL.equals(from) && STATUS_DENIED.equals(to)) {
+            if (!GROUP_SPONSOR_APPROVER.equals(groupName)) {
+                allowed = false;
+            } else if (StringUtils.isBlank(request.getC_DenialReason())) {
+                return requestLabel(request) + ": " + DENIAL_REASON_REQUIRED_MESSAGE;
+            } else {
+                allowed = true;
+            }
+        // Legacy approve path: Submitted or Under Review → Approved (Sponsor Approver)
         } else if ((STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from))
                 && STATUS_APPROVED.equals(to)) {
             allowed = GROUP_SPONSOR_APPROVER.equals(groupName);
-        // Deny: Submitted, Under Review or Approved → Denied (Sponsor Approver + reason)
+        // Legacy deny path: Submitted, Under Review or Approved → Denied (Sponsor Approver + reason)
         } else if ((STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from) || STATUS_APPROVED.equals(from))
                 && STATUS_DENIED.equals(to)) {
             if (!GROUP_SPONSOR_APPROVER.equals(groupName)) {
@@ -159,7 +217,7 @@ public class ShipmentRequisitionManager {
         // Start fulfilment: Approved → In Fulfilment (Logistics / Project Coordinator)
         } else if (STATUS_APPROVED.equals(from) && STATUS_IN_FULFILMENT.equals(to)) {
             allowed = LOGISTICS_OR_COORDINATOR.contains(groupName);
-        // Ship: Approved or In Fulfilment → Shipped (anyone, if a box has left)
+        // Ship: Approved or In Fulfilment → Shipped (anyone, if at least one box has left)
         } else if ((STATUS_APPROVED.equals(from) || STATUS_IN_FULFILMENT.equals(from))
                 && STATUS_SHIPPED.equals(to)) {
             allowed = boxesSupported(request, STATUS_SHIPPED);
@@ -171,7 +229,7 @@ public class ShipmentRequisitionManager {
                 && STATUS_CLOSED.equals(to)) {
             allowed = LOGISTICS_OR_COORDINATOR.contains(groupName);
         } else {
-            // Any other jump is not allowed
+            // Any other jump (skipping steps, wrong direction, etc.) is not allowed
             allowed = false;
         }
 
@@ -225,16 +283,20 @@ public class ShipmentRequisitionManager {
 
         relationshipMan.loadParents(submittedRequests, ProjectModel.class);
 
+        // Cache: username → "are they in Sponsor Approver?" so we don't re-query per request
         Map<String, Boolean> sponsorApproverByUsername = new HashMap<>();
         List<NotificationRecipient> fallbackRecipients = null;
-        // Keyed by email so one body is shared for email + in-app to the same person.
+        // Keyed by email so one body is shared for email + in-app to the same person
         Map<String, NotificationRecipient> recipientByEmail = new LinkedHashMap<>();
+        // Which requests each email address should see in their message
         Map<String, List<RequestModel>> requestsByRecipientEmail = new LinkedHashMap<>();
 
         for (RequestModel request : submittedRequests) {
+            // Prefer Sponsor Approvers who already have read+write on this Request's ACL
             List<NotificationRecipient> recipients =
                     findSponsorApproverRecipients(request, sponsorApproverByUsername);
             if (recipients.isEmpty()) {
+                // Nobody ACL-matched → fall back to Logistics / Project Coordinator (once, then reuse)
                 if (fallbackRecipients == null) {
                     fallbackRecipients = findLogisticsAndProjectCoordinatorRecipients();
                 }
@@ -262,6 +324,90 @@ public class ShipmentRequisitionManager {
                     "Shipment requisition(s) submitted",
                     body,
                     "submitted");
+        }
+    }
+
+    /**
+     * Emails and in-app notifies every Principal Investigator and B2S Admin user when requests move
+     * to Awaiting B2S Approval. One message per recipient listing all matching requests in the save.
+     * Call only after every transition in the save has been validated. Delivery failures are logged
+     * and do not fail the save.
+     */
+    public void notifyAwaitingB2SApproval(List<RequestModel> awaitingB2SRequests) throws Throwable {
+        if (awaitingB2SRequests == null || awaitingB2SRequests.isEmpty()) {
+            return;
+        }
+
+        relationshipMan.loadParents(awaitingB2SRequests, ProjectModel.class);
+        // Whole group(s): anyone in PI or B2S Admin can act on these, so notify all of them
+        List<NotificationRecipient> recipients = findRecipientsInGroups(B2S_APPROVER_GROUPS);
+        if (recipients.isEmpty()) {
+            logger.error("ShipmentRequisitionManager: No Principal Investigator / B2S Admin recipients "
+                    + "with email for Awaiting B2S Approval notification");
+            return;
+        }
+
+        // Same body for everyone — each recipient gets the full list from this save
+        String body = buildAwaitingB2SApprovalEmailBody(awaitingB2SRequests);
+        for (NotificationRecipient recipient : recipients) {
+            deliverEmailAndInAppNotification(
+                    recipient,
+                    "Shipment requisition(s) awaiting B2S approval",
+                    body,
+                    "awaiting B2S approval");
+        }
+    }
+
+    /**
+     * Emails and in-app notifies Sponsor Approver users who have read+write on each request's ACL
+     * when requests move to Awaiting Sponsor Approval. Does not fall back to other groups. One
+     * message per recipient listing their matching requests. Call only after every transition in
+     * the save has been validated. Delivery failures are logged and do not fail the save.
+     */
+    public void notifyAwaitingSponsorApproval(List<RequestModel> awaitingSponsorRequests) throws Throwable {
+        if (awaitingSponsorRequests == null || awaitingSponsorRequests.isEmpty()) {
+            return;
+        }
+
+        relationshipMan.loadParents(awaitingSponsorRequests, ProjectModel.class);
+
+        Map<String, Boolean> sponsorApproverByUsername = new HashMap<>();
+        Map<String, NotificationRecipient> recipientByEmail = new LinkedHashMap<>();
+        Map<String, List<RequestModel>> requestsByRecipientEmail = new LinkedHashMap<>();
+
+        for (RequestModel request : awaitingSponsorRequests) {
+            // Only Sponsor Approvers with ACL on THIS request — not the whole group, no fallback
+            List<NotificationRecipient> recipients =
+                    findSponsorApproverRecipients(request, sponsorApproverByUsername);
+            if (recipients.isEmpty()) {
+                logger.error("ShipmentRequisitionManager: No ACL Sponsor Approver with email for "
+                        + "Awaiting Sponsor Approval request "
+                        + StringUtils.defaultIfBlank(request.getRequestId(),
+                        String.valueOf(request.getRecordId())));
+                continue;
+            }
+            for (NotificationRecipient recipient : recipients) {
+                if (StringUtils.isBlank(recipient.email)) {
+                    continue;
+                }
+                recipientByEmail.putIfAbsent(recipient.email, recipient);
+                requestsByRecipientEmail.computeIfAbsent(recipient.email, key -> new ArrayList<>())
+                        .add(request);
+            }
+        }
+
+        if (requestsByRecipientEmail.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<String, List<RequestModel>> entry : requestsByRecipientEmail.entrySet()) {
+            NotificationRecipient recipient = recipientByEmail.get(entry.getKey());
+            String body = buildAwaitingSponsorApprovalEmailBody(entry.getValue());
+            deliverEmailAndInAppNotification(
+                    recipient,
+                    "Shipment requisition(s) awaiting sponsor approval",
+                    body,
+                    "awaiting sponsor approval");
         }
     }
 
@@ -333,15 +479,91 @@ public class ShipmentRequisitionManager {
         }
     }
 
-    // Ask for Denial Reason when a Sponsor Approver is denying and the field is still blank.
+    // True when this user is allowed to deny from the current status and Denial Reason is still empty
     private boolean needsDenialReasonPrompt(String previousStatus, String newStatus, String groupName,
             RequestModel request) {
-        if (!GROUP_SPONSOR_APPROVER.equals(groupName) || StringUtils.isNotBlank(request.getC_DenialReason())) {
+        if (StringUtils.isNotBlank(request.getC_DenialReason()) || !STATUS_DENIED.equals(newStatus)) {
             return false;
         }
         String from = normalizeStatus(previousStatus);
-        return (STATUS_SUBMITTED.equals(from) || STATUS_UNDER_REVIEW.equals(from) || STATUS_APPROVED.equals(from))
-                && STATUS_DENIED.equals(newStatus);
+        if (STATUS_AWAITING_B2S_APPROVAL.equals(from)) {
+            return B2S_APPROVER_GROUPS.contains(groupName);
+        }
+        if (STATUS_AWAITING_SPONSOR_APPROVAL.equals(from)
+                || STATUS_SUBMITTED.equals(from)
+                || STATUS_UNDER_REVIEW.equals(from)
+                || STATUS_APPROVED.equals(from)) {
+            return GROUP_SPONSOR_APPROVER.equals(groupName);
+        }
+        return false;
+    }
+
+    // True for the two "approve forward" moves that require an electronic signature
+    private static boolean needsApprovalESign(String previousStatus, String newStatus) {
+        String from = normalizeStatus(previousStatus);
+        String to = normalizeStatus(newStatus);
+        return (STATUS_AWAITING_B2S_APPROVAL.equals(from) && STATUS_AWAITING_SPONSOR_APPROVAL.equals(to))
+                || (STATUS_AWAITING_SPONSOR_APPROVAL.equals(from) && STATUS_APPROVED.equals(to));
+    }
+
+    /**
+     * Collects an e-signature for an approval transition and writes it to the system log.
+     * Cancel or failed authentication aborts the save.
+     */
+    private void promptForApprovalESign(RequestModel request, String previousStatus, String newStatus)
+            throws Throwable {
+        String requestId = requestLabel(request);
+        String from = normalizeStatus(previousStatus);
+        String to = normalizeStatus(newStatus);
+        String message = "Authenticate to move " + requestId + " from " + from + " to " + to + ".";
+
+        ESignAuthentication eSign = clientCallback.showESignDialog(
+                ESIGN_TITLE,
+                message,
+                true,
+                buildApprovalESignFields(request, from, to),
+                user);
+        if (eSign == null || !eSign.isAuthenticated()) {
+            clientCallback.displayError(requestId + ": " + ESIGN_REQUIRED_MESSAGE);
+            throw new UserRequestedCancelServerException();
+        }
+
+        String userComment = StringUtils.defaultIfBlank(eSign.getUserComment(),
+                "Approve requisition: " + from + " → " + to);
+        user.getSystemLog().appendESignatureLog(
+                SystemLogESignLoggingRequest.builder()
+                        .eSignAuthentication(eSign)
+                        .dataRecordsToESign(Collections.singletonList(request.getDataRecord()))
+                        .userComment(userComment)
+                        .build(),
+                user);
+    }
+
+    private static TemporaryDataType buildApprovalESignFields(RequestModel request, String from, String to)
+            throws ServerException, RemoteException {
+        FormBuilder formBuilder = new FormBuilder();
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName("RequestId")
+                .displayName("Request ID")
+                .editable(false)
+                .required(false)
+                .defaultValue(requestLabel(request))
+                .build());
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName("FromStatus")
+                .displayName("From Status")
+                .editable(false)
+                .required(false)
+                .defaultValue(from)
+                .build());
+        formBuilder.addField(VeloxFieldDefinition.stringFieldBuilder()
+                .dataFieldName("ToStatus")
+                .displayName("To Status")
+                .editable(false)
+                .required(false)
+                .defaultValue(to)
+                .build());
+        return formBuilder.getTemporaryDataType();
     }
 
     // Shows the Denial Reason field. Cancel or empty answer aborts the save.
@@ -381,8 +603,9 @@ public class ShipmentRequisitionManager {
     }
 
     /**
-     * Sponsor Approvers with read+write on the request's own user ACL map.
-     * Same filter as before, but resolved from the Request instead of its Directory.
+     * Finds people to notify for a specific request:
+     * must be on the Request's user ACL with read+write, AND be in the Sponsor Approver group.
+     * That way we only email the sponsor approver(s) who can actually see / act on this record.
      */
     private List<NotificationRecipient> findSponsorApproverRecipients(RequestModel request,
             Map<String, Boolean> sponsorApproverByUsername) throws Throwable {
@@ -423,9 +646,14 @@ public class ShipmentRequisitionManager {
 
     /** Users in Logistics or Project Coordinator who have an email address. */
     private List<NotificationRecipient> findLogisticsAndProjectCoordinatorRecipients() throws Throwable {
+        return findRecipientsInGroups(LOGISTICS_OR_COORDINATOR);
+    }
+
+    /** Users in any of the given groups who have an email address (deduped by email). */
+    private List<NotificationRecipient> findRecipientsInGroups(Set<String> groupNames) throws Throwable {
         Map<String, NotificationRecipient> recipientsByEmail = new LinkedHashMap<>();
         for (UserGroup group : dataMgmtServer.getUserGroupManager(user).getUserGroupList(user)) {
-            if (group == null || !LOGISTICS_OR_COORDINATOR.contains(group.getGroupName())) {
+            if (group == null || !groupNames.contains(group.getGroupName())) {
                 continue;
             }
             List<User> groupUsers = group.getUserList(user);
@@ -464,8 +692,25 @@ public class ShipmentRequisitionManager {
     }
 
     private String buildSubmittedEmailBody(List<RequestModel> requests) throws RemoteException, ServerException {
+        return buildRequestListEmailBody("The following requests have been submitted:", requests);
+    }
+
+    private String buildAwaitingB2SApprovalEmailBody(List<RequestModel> requests)
+            throws RemoteException, ServerException {
+        return buildRequestListEmailBody(
+                "The following requests are awaiting B2S approval:", requests);
+    }
+
+    private String buildAwaitingSponsorApprovalEmailBody(List<RequestModel> requests)
+            throws RemoteException, ServerException {
+        return buildRequestListEmailBody(
+                "The following requests are awaiting sponsor approval:", requests);
+    }
+
+    private String buildRequestListEmailBody(String intro, List<RequestModel> requests)
+            throws RemoteException, ServerException {
         StringBuilder html = new StringBuilder();
-        html.append("<p>The following requests have been submitted:</p>");
+        html.append("<p>").append(escapeHtml(intro)).append("</p>");
         html.append("<p></p>");
         for (RequestModel request : requests) {
             ProjectModel project = request.get(Parent.ofType(ProjectModel.class));
