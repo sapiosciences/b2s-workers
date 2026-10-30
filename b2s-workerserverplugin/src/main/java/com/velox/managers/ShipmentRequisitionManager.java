@@ -10,6 +10,7 @@ import com.velox.api.access.AccessType;
 import com.velox.api.access.DataRecordACL;
 import com.velox.api.access.DataRecordAccess;
 import com.velox.api.datamgmtserver.DataMgmtServer;
+import com.velox.api.datarecord.DataRecord;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
@@ -132,8 +133,10 @@ public class ShipmentRequisitionManager {
     public List<String> validateRequests(List<RequestModel> requests, String groupName) throws Throwable {
         List<String> errors = new ArrayList<>();
         for (RequestModel request : requests) {
-            // "From" = what was last committed; "to" = what the user is trying to save now
-            Object lastSaved = request.getDataRecord().getLastSavedValue(RequestModel.C___REQUISITION_STATUS);
+            // "From" = what was last committed; "to" = what the user is trying to save now.
+            // A new request has nothing committed: its last-saved value is the field default (Submitted), so treat it as blank.
+            DataRecord record = request.getDataRecord();
+            Object lastSaved = record.isNew() ? null : record.getLastSavedValue(RequestModel.C___REQUISITION_STATUS);
             String previousStatus = lastSaved == null ? null : lastSaved.toString();
             String newStatus = request.getC_RequisitionStatus();
 
