@@ -330,6 +330,37 @@ public class ShipmentRequisitionManager {
     }
 
     /**
+     * B2S1-249: emails and in-app notifies every Logistics and Project Coordinator user that a sponsor
+     * Submission was created. Call after the Submission is committed so its link resolves.
+     * Replaces the Request OnSave rule for new Submissions: that rule can't see the ancestor Project on
+     * the create save, so it only fired on a later edit. Delivery failures are logged and do not fail.
+     */
+    public void notifySubmissionCreated(RequestModel request, ProjectModel project) throws Throwable {
+        List<NotificationRecipient> recipients = findLogisticsAndProjectCoordinatorRecipients();
+        if (recipients.isEmpty()) {
+            logger.error("ShipmentRequisitionManager: No Logistics / Project Coordinator recipients "
+                    + "with email for Submission notification");
+            return;
+        }
+
+        String projectId = StringUtils.defaultIfBlank(project.getProjectId(), project.getDataRecordName());
+        String sampleCount = request.getNumberOfSamples() == null
+                ? "" : String.valueOf(request.getNumberOfSamples());
+        String requestId = StringUtils.defaultIfBlank(request.getRequestId(), "Request");
+        String link = buildRecordLink(RequestModel.DATA_TYPE_NAME, request.getRecordId());
+
+        // Same wording as the rule this replaces
+        String body = "<p>A request has been created for project " + escapeHtml(projectId) + ".</p>"
+                + "<p>Sample Count: " + escapeHtml(sampleCount) + "</p>"
+                + "<p>Expected Arrival Date: " + escapeHtml(formatDateNeeded(request.getC_ExpectedArrivalDate())) + "</p>"
+                + "<p>Request Link: <a href=\"" + escapeHtml(link) + "\">" + escapeHtml(requestId) + "</a></p>";
+        String subject = "A request has been created for project " + projectId;
+        for (NotificationRecipient recipient : recipients) {
+            deliverEmailAndInAppNotification(recipient, subject, body, "submission");
+        }
+    }
+
+    /**
      * Emails and in-app notifies every Principal Investigator and B2S Admin user when requests move
      * to Awaiting B2S Approval. One message per recipient listing all matching requests in the save.
      * Call only after every transition in the save has been validated. Delivery failures are logged
