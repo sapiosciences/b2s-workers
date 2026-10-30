@@ -87,8 +87,6 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     private static final String SAMPLE_RESERVED = "Reserved";
     // A vial is available once stored (Lifecycle Status Active, B2S1-47) and not already on a requisition
     private static final Set<String> SAMPLE_HELD_STATUSES = Set.of(SAMPLE_RESERVED, "Shipped");
-    // Not on the generated SampleModel yet; switch to its accessor once the record models are regenerated
-    private static final String LIFECYCLE_STATUS_FIELD = "C_LifecycleStatus";
     private static final String LIFECYCLE_ACTIVE = "Active";
 
     private static final long LEAD_TIME_MILLIS = 48L * 60 * 60 * 1000;
@@ -327,8 +325,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             samples.addAll(lot.get(Children.ofType(SampleModel.class)));
         }
         return samples.stream()
-                .filter(sample -> isAvailable((String) sample.getField(LIFECYCLE_STATUS_FIELD),
-                        sample.getExemplarSampleStatus()))
+                .filter(sample -> isAvailable(sample.getC_LifecycleStatus(), sample.getExemplarSampleStatus()))
                 .collect(Collectors.toList());
     }
 
@@ -594,7 +591,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         List<String> unavailable = new ArrayList<>();
         for (DataRecord record : current) {
             String status = record.getStringVal(SampleModel.EXEMPLAR_SAMPLE_STATUS, user);
-            if (!isAvailable(record.getStringVal(LIFECYCLE_STATUS_FIELD, user), status)) {
+            if (!isAvailable(record.getStringVal(SampleModel.C___LIFECYCLE_STATUS, user), status)) {
                 unavailable.add(record.getStringVal(SampleModel.SAMPLE_ID, user) + " (" + status + ")");
             }
         }
