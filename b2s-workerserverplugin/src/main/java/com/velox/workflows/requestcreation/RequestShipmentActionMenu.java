@@ -68,7 +68,7 @@ import java.util.stream.Collectors;
  *   <li>Pick Project</li>
  *   <li>Pick destination address (from the sponsor Directory)</li>
  *   <li>Pick Date Needed (with 48-hour / weekend warnings)</li>
- *   <li>Pick Active or Ready vials</li>
+ *   <li>Pick available vials (stored/Active, not reserved or shipped)</li>
  *   <li>If the pick would leave a Sponsor Lot (or Part) at or below its minimum number of
  *       non-empty vials → warn; status becomes Awaiting B2S Approval instead of Submitted</li>
  *   <li>Review summary → optional file attachment</li>
@@ -84,9 +84,12 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     // On a Part with no Sponsor Lot, this field is the minimum number of non-empty vials to keep.
     private static final String PART_REORDER_LEVEL_FIELD = "ReorderLevelQuantity";
 
-    // Active is B2S's stored-reagent status (B2S1-47); Ready is kept for B2S1-61's denial release
-    private static final Set<String> SAMPLE_AVAILABLE_STATUSES = Set.of("Active", "Ready");
     private static final String SAMPLE_RESERVED = "Reserved";
+    // A vial is available once stored (Lifecycle Status Active, B2S1-47) and not already on a requisition
+    private static final Set<String> SAMPLE_HELD_STATUSES = Set.of(SAMPLE_RESERVED, "Shipped");
+    // Not on the generated SampleModel yet; switch to its accessor once the record models are regenerated
+    private static final String LIFECYCLE_STATUS_FIELD = "C_LifecycleStatus";
+    private static final String LIFECYCLE_ACTIVE = "Active";
 
     private static final long LEAD_TIME_MILLIS = 48L * 60 * 60 * 1000;
     private static final int MAX_SAMPLES_IN_REVIEW = 20;
@@ -141,11 +144,11 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             confirmDateWarnings(dateNeeded);
             logInfo("Request Shipment: date accepted " + dateNeeded);
 
-            // Only vials still Active or Ready are offered
+            // Only available vials are offered
             List<SampleModel> readySamples = loadReadySamples(project);
             logInfo("Request Shipment: Ready samples offered " + readySamples.size());
             if (readySamples.isEmpty()) {
-                clientCallback.displayError("There are no available (Active or Ready) vials on this project to request.");
+                clientCallback.displayError("There are no available vials on this project to request. Vials must be stored (Active) and not already reserved or shipped.");
                 return new PluginResult(true);
             }
             List<SampleModel> selectedSamples = promptForSamples(readySamples);
@@ -301,7 +304,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         }
     }
 
-    /** Active or Ready vials under the Project, directly or through its Studies or Sponsor Lots. Access control limits sponsors to their own. */
+    /** Available vials under the Project, directly or through its Studies or Sponsor Lots. Access control limits sponsors to their own. */
     private List<SampleModel> loadReadySamples(ProjectModel project) throws Throwable {
         relationshipMan.loadChildren(project, SampleModel.class);
         relationshipMan.loadChildren(project, StudyModel.class);
@@ -324,8 +327,13 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             samples.addAll(lot.get(Children.ofType(SampleModel.class)));
         }
         return samples.stream()
-                .filter(sample -> SAMPLE_AVAILABLE_STATUSES.contains(sample.getExemplarSampleStatus()))
+                .filter(sample -> isAvailable((String) sample.getField(LIFECYCLE_STATUS_FIELD),
+                        sample.getExemplarSampleStatus()))
                 .collect(Collectors.toList());
+    }
+
+    private static boolean isAvailable(String lifecycleStatus, String sampleStatus) {
+        return LIFECYCLE_ACTIVE.equals(lifecycleStatus) && !SAMPLE_HELD_STATUSES.contains(sampleStatus);
     }
 
     private List<SampleModel> promptForSamples(List<SampleModel> readySamples) throws Throwable {
@@ -586,7 +594,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         List<String> unavailable = new ArrayList<>();
         for (DataRecord record : current) {
             String status = record.getStringVal(SampleModel.EXEMPLAR_SAMPLE_STATUS, user);
-            if (!SAMPLE_AVAILABLE_STATUSES.contains(status)) {
+            if (!isAvailable(record.getStringVal(LIFECYCLE_STATUS_FIELD, user), status)) {
                 unavailable.add(record.getStringVal(SampleModel.SAMPLE_ID, user) + " (" + status + ")");
             }
         }
