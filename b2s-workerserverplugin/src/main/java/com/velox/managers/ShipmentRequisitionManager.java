@@ -539,6 +539,9 @@ public class ShipmentRequisitionManager {
                         .userComment(userComment)
                         .build(),
                 user);
+        // The system e-sign log isn't shown on the record's audit trail, so record the signature there too
+        user.getAuditLog().logInfo("E-signed " + from + " → " + to + ": " + userComment,
+                request.getDataRecord(), user);
     }
 
     private static TemporaryDataType buildApprovalESignFields(RequestModel request, String from, String to)
