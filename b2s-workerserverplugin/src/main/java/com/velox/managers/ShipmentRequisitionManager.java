@@ -19,7 +19,6 @@ import com.velox.api.session.SessionManager;
 import com.velox.api.system.SystemLogESignLoggingRequest;
 import com.velox.api.user.ESignAuthentication;
 import com.velox.api.user.User;
-import com.velox.api.user.UserGroup;
 import com.velox.api.user.UserGroupInfo;
 import com.velox.api.user.UserInfo;
 import com.velox.api.user.VeloxUserManager;
@@ -652,18 +651,23 @@ public class ShipmentRequisitionManager {
         return findRecipientsInGroups(LOGISTICS_OR_COORDINATOR);
     }
 
-    /** Users in any of the given groups who have an email address (deduped by email). */
+    /**
+     * Users in any of the given groups who have an email address (deduped by email).
+     * Uses getUserInfoMapForGroups (as the rule email action does): UserGroup.getUserList needs
+     * user-admin privileges, so it fails when a sponsor's save notifies B2S groups.
+     */
     private List<NotificationRecipient> findRecipientsInGroups(Set<String> groupNames) throws Throwable {
         Map<String, NotificationRecipient> recipientsByEmail = new LinkedHashMap<>();
-        for (UserGroup group : dataMgmtServer.getUserGroupManager(user).getUserGroupList(user)) {
-            if (group == null || !groupNames.contains(group.getGroupName())) {
-                continue;
-            }
-            List<User> groupUsers = group.getUserList(user);
+        Map<String, Set<UserInfo>> usersByGroup =
+                dataMgmtServer.getUserGroupManager(user).getUserInfoMapForGroups(groupNames, user);
+        if (usersByGroup == null) {
+            return new ArrayList<>();
+        }
+        for (Set<UserInfo> groupUsers : usersByGroup.values()) {
             if (groupUsers == null) {
                 continue;
             }
-            for (User groupUser : groupUsers) {
+            for (UserInfo groupUser : groupUsers) {
                 if (groupUser == null || StringUtils.isBlank(groupUser.getEmailAddress())) {
                     continue;
                 }
