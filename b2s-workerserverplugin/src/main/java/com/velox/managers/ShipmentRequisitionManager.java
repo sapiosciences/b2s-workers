@@ -11,6 +11,7 @@ import com.velox.api.access.DataRecordACL;
 import com.velox.api.access.DataRecordAccess;
 import com.velox.api.datamgmtserver.DataMgmtServer;
 import com.velox.api.datarecord.DataRecord;
+import com.velox.api.util.PopupType;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
@@ -694,6 +695,7 @@ public class ShipmentRequisitionManager {
         Map<String, NotificationRecipient> recipientsByEmail = new LinkedHashMap<>();
         Map<String, Set<UserInfo>> usersByGroup =
                 dataMgmtServer.getUserGroupManager(user).getUserInfoMapForGroups(groupNames, user);
+        debugRecipientLookup(groupNames, usersByGroup);
         if (usersByGroup == null) {
             return new ArrayList<>();
         }
@@ -711,6 +713,37 @@ public class ShipmentRequisitionManager {
             }
         }
         return new ArrayList<>(recipientsByEmail.values());
+    }
+
+    // TEMP DEBUG (B2S1-249, 10/30): shows what the group lookup returned for the current user. Remove before stage.
+    private void debugRecipientLookup(Set<String> groupNames, Map<String, Set<UserInfo>> usersByGroup)
+            throws Throwable {
+        StringBuilder message = new StringBuilder("Lookup as " + user.getUsername() + " for " + groupNames + ":");
+        if (usersByGroup == null) {
+            message.append("\n(null map)");
+        } else if (usersByGroup.isEmpty()) {
+            message.append("\n(empty map)");
+        } else {
+            for (Map.Entry<String, Set<UserInfo>> entry : usersByGroup.entrySet()) {
+                Set<UserInfo> users = entry.getValue();
+                message.append("\n").append(entry.getKey()).append(": ")
+                        .append(users == null ? "null" : users.size() + " user(s)");
+                if (users != null) {
+                    for (UserInfo info : users) {
+                        message.append("\n  - ").append(info == null ? "null"
+                                : info.getUsername() + " <" + StringUtils.defaultIfBlank(info.getEmailAddress(), "no email") + ">");
+                    }
+                }
+            }
+        }
+        logger.info("ShipmentRequisitionManager DEBUG " + message);
+        if (clientCallback != null) {
+            try {
+                clientCallback.displayPopup("DEBUG: notification recipients", message.toString(), PopupType.Info);
+            } catch (Exception e) {
+                logger.error("ShipmentRequisitionManager: debug popup failed", e);
+            }
+        }
     }
 
     private boolean isSponsorApprover(String username, Map<String, Boolean> cache) throws Throwable {
