@@ -69,7 +69,7 @@ import java.util.stream.Collectors;
  *   <li>Pick destination address (from the sponsor Directory)</li>
  *   <li>Pick Date Needed (with 48-hour / weekend warnings)</li>
  *   <li>Pick available vials (stored/Active, not reserved or shipped)</li>
- *   <li>If the pick would leave a Sponsor Lot (or Part) at or below its minimum number of
+ *   <li>If the pick would leave a Sponsor Lot (or Part) below its minimum number of
  *       non-empty vials → warn; status becomes Awaiting B2S Approval instead of Submitted</li>
  *   <li>Review summary → optional file attachment</li>
  *   <li>One commit: create Request, move vials off the lot onto the Request, mark them Reserved</li>
@@ -350,7 +350,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             return ShipmentRequisitionManager.STATUS_SUBMITTED;
         }
 
-        String message = "This shipment would leave a Sponsor Lot or Part at or below its minimum number of non-empty vials:\n\n"
+        String message = "This shipment would leave a Sponsor Lot or Part below its minimum number of non-empty vials:\n\n"
                 + String.join("\n", breachMessages)
                 + "\n\nIf you continue, the request will be created as "
                 + ShipmentRequisitionManager.STATUS_AWAITING_B2S_APPROVAL
@@ -401,7 +401,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                         .collect(Collectors.toCollection(LinkedHashSet::new));
                 int remaining = countNonEmptyExcluding(
                         lot.get(Children.ofType(SampleModel.class)), selectedIds);
-                if (remaining <= threshold) {
+                if (remaining < threshold) {
                     breaches.add(formatBreachLine(
                             "Sponsor Lot",
                             StringUtils.defaultIfBlank(lot.getDataRecordName(), String.valueOf(lot.getRecordId())),
@@ -483,7 +483,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                     .collect(Collectors.toCollection(LinkedHashSet::new));
             int remaining = countNonEmptyExcluding(
                     part.get(Children.ofType(SampleModel.class)), selectedIds);
-            if (remaining <= threshold) {
+            if (remaining < threshold) {
                 Object partName = part.getField("DataRecordName");
                 breaches.add(formatBreachLine(
                         "Part",
@@ -525,6 +525,10 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         int count = 0;
         for (SampleModel sample : samples) {
             if (sample.getRecordId() != null && excludedRecordIds.contains(sample.getRecordId())) {
+                continue;
+            }
+            // Already on a requisition (Reserved) or gone (Shipped): not part of what remains
+            if (SAMPLE_HELD_STATUSES.contains(sample.getExemplarSampleStatus())) {
                 continue;
             }
             Double volume = sample.getVolume();
@@ -650,23 +654,9 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         request.setC_DestinationAddress(formatAddress(destination));
         project.add(Child.ref(request));
 
-        // Unlink selected vials from their Sponsor Lot — they belong to the Request from here on
-        relationshipMan.loadParents(selectedSamples, C_SponsorLotModel.class);
-        Map<Long, C_SponsorLotModel> lotsById = new LinkedHashMap<>();
-        Map<Long, List<SampleModel>> samplesByLotId = new HashMap<>();
-        for (SampleModel sample : selectedSamples) {
-            C_SponsorLotModel lot = sample.get(Parent.ofType(C_SponsorLotModel.class));
-            if (lot == null || lot.getRecordId() == null) {
-                continue;
-            }
-            lotsById.putIfAbsent(lot.getRecordId(), lot);
-            samplesByLotId.computeIfAbsent(lot.getRecordId(), ignored -> new ArrayList<>()).add(sample);
-        }
-        for (Map.Entry<Long, List<SampleModel>> entry : samplesByLotId.entrySet()) {
-            lotsById.get(entry.getKey()).remove(Children.refs(entry.getValue()));
-        }
-
-        // Request → vials, and mark them Reserved so nobody else can pick them
+        // Request → vials, and mark them Reserved so nobody else can pick them.
+        // Vials stay on their Sponsor Lot too: a denial only resets their status, so they're pickable again,
+        // and the reserve check skips Reserved / Shipped vials (countNonEmptyExcluding).
         for (SampleModel sample : selectedSamples) {
             request.add(Child.ref(sample));
             sample.setExemplarSampleStatus(SAMPLE_RESERVED);
