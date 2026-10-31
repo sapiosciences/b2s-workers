@@ -11,6 +11,7 @@ import com.velox.api.access.DataRecordACL;
 import com.velox.api.access.DataRecordAccess;
 import com.velox.api.datamgmtserver.DataMgmtServer;
 import com.velox.api.datarecord.DataRecord;
+import com.velox.api.util.PopupType;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
@@ -326,6 +327,37 @@ public class ShipmentRequisitionManager {
                     "Shipment requisition(s) submitted",
                     body,
                     "submitted");
+        }
+    }
+
+    /**
+     * B2S1-249: emails and in-app notifies every Logistics and Project Coordinator user that a sponsor
+     * Submission was created. Call after the Submission is committed so its link resolves.
+     * Replaces the Request OnSave rule for new Submissions: that rule can't see the ancestor Project on
+     * the create save, so it only fired on a later edit. Delivery failures are logged and do not fail.
+     */
+    public void notifySubmissionCreated(RequestModel request, ProjectModel project) throws Throwable {
+        List<NotificationRecipient> recipients = findLogisticsAndProjectCoordinatorRecipients();
+        if (recipients.isEmpty()) {
+            logger.error("ShipmentRequisitionManager: No Logistics / Project Coordinator recipients "
+                    + "with email for Submission notification");
+            return;
+        }
+
+        String projectId = StringUtils.defaultIfBlank(project.getProjectId(), project.getDataRecordName());
+        String sampleCount = request.getNumberOfSamples() == null
+                ? "" : String.valueOf(request.getNumberOfSamples());
+        String requestId = StringUtils.defaultIfBlank(request.getRequestId(), "Request");
+        String link = buildRecordLink(RequestModel.DATA_TYPE_NAME, request.getRecordId());
+
+        // Same wording as the rule this replaces
+        String body = "<p>A request has been created for project " + escapeHtml(projectId) + ".</p>"
+                + "<p>Sample Count: " + escapeHtml(sampleCount) + "</p>"
+                + "<p>Expected Arrival Date: " + escapeHtml(formatDateNeeded(request.getC_ExpectedArrivalDate())) + "</p>"
+                + "<p>Request Link: <a href=\"" + escapeHtml(link) + "\">" + escapeHtml(requestId) + "</a></p>";
+        String subject = "A request has been created for project " + projectId;
+        for (NotificationRecipient recipient : recipients) {
+            deliverEmailAndInAppNotification(recipient, subject, body, "submission");
         }
     }
 
@@ -663,6 +695,7 @@ public class ShipmentRequisitionManager {
         Map<String, NotificationRecipient> recipientsByEmail = new LinkedHashMap<>();
         Map<String, Set<UserInfo>> usersByGroup =
                 dataMgmtServer.getUserGroupManager(user).getUserInfoMapForGroups(groupNames, user);
+        debugRecipientLookup(groupNames, usersByGroup);
         if (usersByGroup == null) {
             return new ArrayList<>();
         }
@@ -680,6 +713,37 @@ public class ShipmentRequisitionManager {
             }
         }
         return new ArrayList<>(recipientsByEmail.values());
+    }
+
+    // TEMP DEBUG (B2S1-249, 10/30): shows what the group lookup returned for the current user. Remove before stage.
+    private void debugRecipientLookup(Set<String> groupNames, Map<String, Set<UserInfo>> usersByGroup)
+            throws Throwable {
+        StringBuilder message = new StringBuilder("Lookup as " + user.getUsername() + " for " + groupNames + ":");
+        if (usersByGroup == null) {
+            message.append("\n(null map)");
+        } else if (usersByGroup.isEmpty()) {
+            message.append("\n(empty map)");
+        } else {
+            for (Map.Entry<String, Set<UserInfo>> entry : usersByGroup.entrySet()) {
+                Set<UserInfo> users = entry.getValue();
+                message.append("\n").append(entry.getKey()).append(": ")
+                        .append(users == null ? "null" : users.size() + " user(s)");
+                if (users != null) {
+                    for (UserInfo info : users) {
+                        message.append("\n  - ").append(info == null ? "null"
+                                : info.getUsername() + " <" + StringUtils.defaultIfBlank(info.getEmailAddress(), "no email") + ">");
+                    }
+                }
+            }
+        }
+        logger.info("ShipmentRequisitionManager DEBUG " + message);
+        if (clientCallback != null) {
+            try {
+                clientCallback.displayPopup("DEBUG: notification recipients", message.toString(), PopupType.Info);
+            } catch (Exception e) {
+                logger.error("ShipmentRequisitionManager: debug popup failed", e);
+            }
+        }
     }
 
     private boolean isSponsorApprover(String username, Map<String, Boolean> cache) throws Throwable {

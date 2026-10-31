@@ -10,6 +10,7 @@ import com.velox.api.datarecord.DataRecord;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.invocation.context.OnSaveContext;
+import com.velox.managers.RequisitionNotificationElevatedPlugin;
 import com.velox.managers.ShipmentRequisitionManager;
 import com.velox.recordmodels.C_ShipmentBoxModel;
 import com.velox.recordmodels.RequestModel;
@@ -100,19 +101,12 @@ public class RequisitionStatusOnSave extends DefaultOnSavePlugin {
                 }
             }
 
-            // Alerts only after every transition in this save was accepted (or admin bypassed checks)
-            if (!submittedRequests.isEmpty()) {
-                requisitionMan.notifySubmitted(submittedRequests);
-            }
-            if (!awaitingB2SRequests.isEmpty()) {
-                requisitionMan.notifyAwaitingB2SApproval(awaitingB2SRequests);
-            }
-            if (!awaitingSponsorRequests.isEmpty()) {
-                requisitionMan.notifyAwaitingSponsorApproval(awaitingSponsorRequests);
-            }
-            if (!shippedRequests.isEmpty()) {
-                requisitionMan.notifyShipped(shippedRequests);
-            }
+            // Alerts only after every transition in this save was accepted (or admin bypassed checks).
+            // Queued to run elevated after commit: a sponsor can't list B2S group members.
+            RequisitionNotificationElevatedPlugin.queue(user, RequisitionNotificationElevatedPlugin.KIND_SUBMITTED, submittedRequests);
+            RequisitionNotificationElevatedPlugin.queue(user, RequisitionNotificationElevatedPlugin.KIND_AWAITING_B2S, awaitingB2SRequests);
+            RequisitionNotificationElevatedPlugin.queue(user, RequisitionNotificationElevatedPlugin.KIND_AWAITING_SPONSOR, awaitingSponsorRequests);
+            RequisitionNotificationElevatedPlugin.queue(user, RequisitionNotificationElevatedPlugin.KIND_SHIPPED, shippedRequests);
 
             // Write any Denial Reason collected during validation onto the ongoing save
             recMan.storeChanges();
