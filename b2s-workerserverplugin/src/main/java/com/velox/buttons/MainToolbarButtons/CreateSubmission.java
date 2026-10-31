@@ -19,7 +19,7 @@ import com.velox.api.plugin.directive.DataRecordFormDirective;
 import com.velox.api.plugin.invocation.ActionMenuPlugin;
 import com.velox.api.plugin.invocation.context.ActionMenuContext;
 import com.velox.api.plugin.invocation.context.OnActionMenuContext;
-import com.velox.managers.ShipmentRequisitionManager;
+import com.velox.managers.RequisitionNotificationElevatedPlugin;
 import com.velox.recordmodels.C_SponsorContactModel;
 import com.velox.recordmodels.DirectoryModel;
 import com.velox.recordmodels.ProjectModel;
@@ -124,9 +124,11 @@ public class CreateSubmission extends ExemplarVeloxServerPlugin<ActionMenuContex
             RequestModel request = createSubmission(project, details, selectedSamples);
             // B2S1-249: we notify below, so mark it sent and keep the Request OnSave rule from repeating it
             request.setC_NotificationSent(true);
+            // Store first so the Request has its real record id, then queue the alert to run elevated after commit
+            recMan.storeChanges();
+            RequisitionNotificationElevatedPlugin.queue(user, RequisitionNotificationElevatedPlugin.KIND_SUBMISSION,
+                    List.of(request));
             recMan.storeAndCommit("Created submission under Project " + project.getRecordId());
-            // After the commit so the request link has its real record id
-            new ShipmentRequisitionManager(clientCallback, exemplarContext).notifySubmissionCreated(request, project);
             return new PluginResult(true, new DataRecordFormDirective(request.getDataRecord()));
         } catch (UserRequestedCancelServerException e) {
             // User hit Cancel somewhere — leave nothing behind.
