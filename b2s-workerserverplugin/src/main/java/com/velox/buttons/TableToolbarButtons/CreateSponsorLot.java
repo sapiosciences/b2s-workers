@@ -22,6 +22,7 @@ import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlu
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Child;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
+import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.exemplar.recordmodel.util.RecordModelUtil;
 
 import java.util.ArrayList;
@@ -40,6 +41,9 @@ public class CreateSponsorLot extends DefaultFormToolbarPlugin {
 
     // Alert once non-empty vials (volume > 0) drop to 25% of the number allocated onto the lot.
     private static final double MINIMUM_THRESHOLD_FRACTION = 0.25;
+
+    // On a requisition or already gone: not offered for allocation (same held set as Request Shipment)
+    private static final Set<String> SAMPLE_UNAVAILABLE_STATUSES = Set.of("Reserved", "Shipped");
 
     // ExemplarConfig stores consumable mappings as: Part ::: Sample ::: Item (one per line)
     private static final String EXEMPLAR_CONFIG_DATA_TYPE = "ExemplarConfig";
@@ -128,7 +132,8 @@ public class CreateSponsorLot extends DefaultFormToolbarPlugin {
 
             List<SampleModel> vials = loadPartVials(part);
             if (vials.isEmpty()) {
-                clientCallback.displayError("This Part has no child vials to allocate.");
+                clientCallback.displayError("This Part has no vials available to allocate. "
+                        + "Vials that are Reserved, Shipped or already on a Sponsor Lot are not offered.");
                 return new PluginResult(false);
             }
 
@@ -174,9 +179,21 @@ public class CreateSponsorLot extends DefaultFormToolbarPlugin {
         return instMan.addExistingRecordOfType(selectedProject, ProjectModel.class);
     }
 
+    /**
+     * The Part's vials that can still be allocated: not Reserved or Shipped, and not already on a
+     * Sponsor Lot (a vial belongs to at most one lot).
+     */
     private List<SampleModel> loadPartVials(RecordModel part) throws Throwable {
         relationshipMan.loadChildren(part, SampleModel.class);
-        return new ArrayList<>(part.get(Children.ofType(SampleModel.class)));
+        List<SampleModel> vials = new ArrayList<>(part.get(Children.ofType(SampleModel.class)));
+        if (vials.isEmpty()) {
+            return vials;
+        }
+        relationshipMan.loadParents(vials, C_SponsorLotModel.class);
+        return vials.stream()
+                .filter(vial -> !SAMPLE_UNAVAILABLE_STATUSES.contains(vial.getExemplarSampleStatus()))
+                .filter(vial -> vial.get(Parent.ofType(C_SponsorLotModel.class)) == null)
+                .collect(Collectors.toList());
     }
 
     private List<SampleModel> promptForVials(List<SampleModel> vials) throws Throwable {
