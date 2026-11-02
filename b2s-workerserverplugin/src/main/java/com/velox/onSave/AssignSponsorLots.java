@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  */
 public class AssignSponsorLots extends DefaultOnSavePlugin {
 
-    // Minimum threshold on a new lot is always 25% of its total volume
+    // Alert once non-empty vials (volume > 0) drop to 25% of the number placed on the lot.
     private static final double MINIMUM_THRESHOLD_FRACTION = 0.25;
 
     // ExemplarConfig stores consumable mappings as: Part ::: Sample ::: Item (one per line)
@@ -41,22 +41,23 @@ public class AssignSponsorLots extends DefaultOnSavePlugin {
 
     @Override
     protected boolean shouldRun(OnSaveContext ctx) throws Throwable {
-        // A save can include mixed record types; we only care about Samples
-        List<DataRecord> sampleRecords = new ArrayList<>();
-        for (DataRecord record : ctx.getDataRecordList()) {
-            if (SampleModel.DATA_TYPE_NAME.equals(record.getDataTypeName())) {
-                sampleRecords.add(record);
-            }
-        }
-
-        // Skip if there are no samples, or no UI to show the confirmation dialog
-        if (sampleRecords.isEmpty() || clientCallback == null) {
-            return false;
-        }
-
-        // Convert to SampleModels so we can use typed fields and relationships
-        samples = instMan.addExistingRecordsOfType(sampleRecords, SampleModel.class);
-        return true;
+//        // A save can include mixed record types; we only care about Samples
+//        List<DataRecord> sampleRecords = new ArrayList<>();
+//        for (DataRecord record : ctx.getDataRecordList()) {
+//            if (SampleModel.DATA_TYPE_NAME.equals(record.getDataTypeName())) {
+//                sampleRecords.add(record);
+//            }
+//        }
+//
+//        // Skip if there are no samples, or no UI to show the confirmation dialog
+//        if (sampleRecords.isEmpty() || clientCallback == null) {
+//            return false;
+//        }
+//
+//        // Convert to SampleModels so we can use typed fields and relationships
+//        samples = instMan.addExistingRecordsOfType(sampleRecords, SampleModel.class);
+//        return true;
+        return false;
     }
 
     @Override
@@ -122,14 +123,19 @@ public class AssignSponsorLots extends DefaultOnSavePlugin {
             return new PluginResult(true);
         }
 
-        // Each sample gets its own Sponsor Lot under its Part, with volume/threshold from that sample
+        // Each sample gets its own Sponsor Lot under its Part.
+        // Threshold is 25% of that sample when it is non-empty, otherwise zero.
         for (SampleModel sample : samplesToCreateLotsFor) {
             Double volume = sample.getVolume();
             double totalVolume = volume != null ? volume : 0.0;
+            int nonEmptyVials = volume != null && volume > 0.0 ? 1 : 0;
+            // Round up to a whole vial. A fractional vial cannot be kept, so one non-empty
+            // vial becomes a threshold of 1 rather than 0.25.
+            double minimumThreshold = Math.ceil(nonEmptyVials * MINIMUM_THRESHOLD_FRACTION);
 
             C_SponsorLotModel sponsorLot = instMan.addNewRecord(C_SponsorLotModel.class);
             sponsorLot.setC_Volume(totalVolume);
-            sponsorLot.setC_MinimumThreshold(totalVolume * MINIMUM_THRESHOLD_FRACTION);
+            sponsorLot.setC_MinimumThreshold(minimumThreshold);
 
             // Part → Sponsor Lot → Sample (mirror CST: partModel.add(Child.ref(newLot)))
             RecordModel partParent = sampleToPart.get(sample);

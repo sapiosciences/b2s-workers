@@ -31,6 +31,42 @@ public class SBA_MasterAssayRunModel extends AbstractRecordModelWrapper {
 	public static final String C___APPROVED = "C_Approved";
 
 	/**
+	 * <b>Data Field Name</b>: C_ApprovedBy<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Approved By<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___APPROVED_BY = "C_ApprovedBy";
+
+	/**
+	 * <b>Data Field Name</b>: C_DateApproved<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Approved<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___DATE_APPROVED = "C_DateApproved";
+
+	/**
+	 * <b>Data Field Name</b>: C_DateReviewed<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Reviewed<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___DATE_REVIEWED = "C_DateReviewed";
+
+	/**
+	 * <b>Data Field Name</b>: C_ReviewedBy<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Reviewed By<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___REVIEWED_BY = "C_ReviewedBy";
+
+	/**
 	 * <b>Data Field Name</b>: CreatedBy<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Created By<br/>
@@ -836,6 +872,126 @@ public class SBA_MasterAssayRunModel extends AbstractRecordModelWrapper {
 	 */
 	public void setC_Approved(Boolean value) {
 		setField(C___APPROVED, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___APPROVED_BY} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ApprovedBy<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Approved By<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_ApprovedBy" field
+	 */
+	public String getC_ApprovedBy() {
+		return getField(C___APPROVED_BY);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___APPROVED_BY} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ApprovedBy<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Approved By<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_ApprovedBy" field
+	 */
+	public void setC_ApprovedBy(String value) {
+		setField(C___APPROVED_BY, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___DATE_APPROVED} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DateApproved<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Approved<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_DateApproved" field
+	 */
+	public Long getC_DateApproved() {
+		return getField(C___DATE_APPROVED);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___DATE_APPROVED} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DateApproved<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Approved<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_DateApproved" field
+	 */
+	public void setC_DateApproved(Long value) {
+		setField(C___DATE_APPROVED, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___DATE_REVIEWED} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DateReviewed<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Reviewed<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_DateReviewed" field
+	 */
+	public Long getC_DateReviewed() {
+		return getField(C___DATE_REVIEWED);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___DATE_REVIEWED} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_DateReviewed<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Date Reviewed<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_DateReviewed" field
+	 */
+	public void setC_DateReviewed(Long value) {
+		setField(C___DATE_REVIEWED, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___REVIEWED_BY} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ReviewedBy<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Reviewed By<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_ReviewedBy" field
+	 */
+	public String getC_ReviewedBy() {
+		return getField(C___REVIEWED_BY);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___REVIEWED_BY} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_ReviewedBy<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Reviewed By<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_ReviewedBy" field
+	 */
+	public void setC_ReviewedBy(String value) {
+		setField(C___REVIEWED_BY, value);
 	}
 	
 	/**

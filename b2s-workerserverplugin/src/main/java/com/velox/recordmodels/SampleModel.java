@@ -751,6 +751,15 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	public static final String C___LABWARE_VELOX_LAST_MODIFIED_DATE = "C_Labware.VeloxLastModifiedDate";
 
 	/**
+	 * <b>Data Field Name</b>: C_LifecycleStatus<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Lifecycle Status<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___LIFECYCLE_STATUS = "C_LifecycleStatus";
+
+	/**
 	 * <b>Data Field Name</b>: C_OpenedDate<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Opened Date<br/>
@@ -758,6 +767,15 @@ public class SampleModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: No Description
 	 */
 	public static final String C___OPENED_DATE = "C_OpenedDate";
+
+	/**
+	 * <b>Data Field Name</b>: C_OptionalPooled<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Optional Pooled<br/>
+	 * <br/>
+	 * <b>Description</b>: True / False for of the sample underwent optional pooling wf.
+	 */
+	public static final String C___OPTIONAL_POOLED = "C_OptionalPooled";
 
 	/**
 	 * <b>Data Field Name</b>: C_PreparationDate<br/>
@@ -5443,6 +5461,36 @@ A compound that has been rejected classification does not necessarily mean it is
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #C___LIFECYCLE_STATUS} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_LifecycleStatus<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Lifecycle Status<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_LifecycleStatus" field
+	 */
+	public String getC_LifecycleStatus() {
+		return getField(C___LIFECYCLE_STATUS);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___LIFECYCLE_STATUS} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_LifecycleStatus<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Lifecycle Status<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_LifecycleStatus" field
+	 */
+	public void setC_LifecycleStatus(String value) {
+		setField(C___LIFECYCLE_STATUS, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #C___OPENED_DATE} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: C_OpenedDate<br/>
@@ -5470,6 +5518,36 @@ A compound that has been rejected classification does not necessarily mean it is
 	 */
 	public void setC_OpenedDate(Long value) {
 		setField(C___OPENED_DATE, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___OPTIONAL_POOLED} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_OptionalPooled<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Optional Pooled<br/>
+	 * <br/>
+	 * <b>Description</b>: True / False for of the sample underwent optional pooling wf.
+	 * 
+	 * @return the value stored on the "C_OptionalPooled" field
+	 */
+	public Boolean getC_OptionalPooled() {
+		return getField(C___OPTIONAL_POOLED);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___OPTIONAL_POOLED} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_OptionalPooled<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Optional Pooled<br/>
+	 * <br/>
+	 * <b>Description</b>: True / False for of the sample underwent optional pooling wf.
+	 * 
+	 * @param value The value to set on the "C_OptionalPooled" field
+	 */
+	public void setC_OptionalPooled(Boolean value) {
+		setField(C___OPTIONAL_POOLED, value);
 	}
 	
 	/**
