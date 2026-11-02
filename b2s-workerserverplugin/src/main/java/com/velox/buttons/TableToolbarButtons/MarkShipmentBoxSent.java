@@ -118,6 +118,9 @@ public class MarkShipmentBoxSent extends DefaultTableToolbarPlugin {
                                 .userComment(userComment)
                                 .build(),
                         user);
+                // The system e-sign log isn't shown on the record's audit trail, so record the signature there too
+                user.getAuditLog().logInfo("E-signed Mark Sent (In Transit): " + userComment,
+                        shipmentBox.getDataRecord(), user);
                 shipmentBox.setC_Status(ShipmentBoxTableToolbarSupport.STATUS_IN_TRANSIT);
                 shipmentBox.setC_ShippedDate(shippedDate);
             }
