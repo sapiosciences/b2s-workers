@@ -340,8 +340,8 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     }
 
     /**
-     * Submitted unless removing the selection would leave a Sponsor Lot (or, if none, its Part) at or
-     * below its minimum threshold. In that case the user must confirm, and the request starts as
+     * Submitted unless removing the selection would leave a Sponsor Lot (or, if none, its Part) below
+     * its minimum threshold. In that case the user must confirm, and the request starts as
      * Awaiting B2S Approval. Samples with neither a Sponsor Lot nor a consumable Part parent are skipped.
      */
     private String resolveRequisitionStatusForSelection(List<SampleModel> selectedSamples) throws Throwable {
@@ -362,7 +362,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
     }
 
     /**
-     * Figures out which Sponsor Lots (or Parts, if no lot) would fall to/below their minimum
+     * Figures out which Sponsor Lots (or Parts, if no lot) would fall below their minimum
      * if the selected vials were removed. Returns human-readable breach lines for the warning dialog.
      * Does not change any records — this is a what-if check only.
      */
@@ -399,12 +399,13 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                 Set<Long> selectedIds = selectedByLotId.getOrDefault(lot.getRecordId(), List.of()).stream()
                         .map(SampleModel::getRecordId)
                         .collect(Collectors.toCollection(LinkedHashSet::new));
-                int remaining = countNonEmptyExcluding(
-                        lot.get(Children.ofType(SampleModel.class)), selectedIds);
+                Iterable<SampleModel> lotVials = lot.get(Children.ofType(SampleModel.class));
+                int remaining = countNonEmptyExcluding(lotVials, selectedIds);
                 if (remaining < threshold) {
                     breaches.add(formatBreachLine(
                             "Sponsor Lot",
                             StringUtils.defaultIfBlank(lot.getDataRecordName(), String.valueOf(lot.getRecordId())),
+                            countNonEmptyExcluding(lotVials, Set.of()),
                             remaining,
                             threshold));
                 }
@@ -481,8 +482,8 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
             Set<Long> selectedIds = selectedByPartKey.getOrDefault(entry.getKey(), List.of()).stream()
                     .map(SampleModel::getRecordId)
                     .collect(Collectors.toCollection(LinkedHashSet::new));
-            int remaining = countNonEmptyExcluding(
-                    part.get(Children.ofType(SampleModel.class)), selectedIds);
+            Iterable<SampleModel> partVials = part.get(Children.ofType(SampleModel.class));
+            int remaining = countNonEmptyExcluding(partVials, selectedIds);
             if (remaining < threshold) {
                 Object partName = part.getField("DataRecordName");
                 breaches.add(formatBreachLine(
@@ -490,6 +491,7 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
                         StringUtils.defaultIfBlank(
                                 partName == null ? null : partName.toString(),
                                 String.valueOf(part.getRecordId())),
+                        countNonEmptyExcluding(partVials, Set.of()),
                         remaining,
                         threshold));
             }
@@ -553,10 +555,12 @@ public class RequestShipmentActionMenu extends ExemplarVeloxServerPlugin<ActionM
         return null;
     }
 
-    private static String formatBreachLine(String kind, String name, int remaining, double threshold) {
-        String vials = remaining == 1 ? "non-empty vial" : "non-empty vials";
-        return "- " + kind + " " + name + ": " + remaining + " " + vials
-                + " would remain (minimum " + formatCount(threshold) + ")";
+    // e.g. "- Sponsor Lot 42622: 3 non-empty vials now, 1 would remain (minimum 2)"
+    private static String formatBreachLine(String kind, String name, int availableNow, int remaining,
+            double threshold) {
+        String vials = availableNow == 1 ? "non-empty vial" : "non-empty vials";
+        return "- " + kind + " " + name + ": " + availableNow + " " + vials + " now, "
+                + remaining + " would remain (minimum " + formatCount(threshold) + ")";
     }
 
     // Whole numbers print without a trailing ".0" (a threshold of 8, not 8.0).
