@@ -1,7 +1,7 @@
 /**
  * Created: 2026-11-20 10:57
  * Agent type: Grok 4.7
- * Modified: 2026-11-20 15:58
+ * Modified: 2026-11-20 16:09
  * Agent type: Grok 4.7
  */
 /*
@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -62,6 +63,12 @@ import java.util.regex.Pattern;
 public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
 
     private static final String TEMPLATE_NAME = "B2S_PK_SampleAnalysisReport_Mockup";
+
+    private static final Set<String> ALLOWED_GROUPS = Set.of(
+            "Principal Investigator",
+            "Tech Writer",
+            "B2S Admin",
+            "Sapio Admin");
 
     private static final DateTimeFormatter REPORT_DATE = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
@@ -91,18 +98,12 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
 
     @Override
     public boolean onFormToolbar(OnFormToolbarContext ctx) throws Throwable {
-        return StudyModel.DATA_TYPE_NAME.equals(ctx.getDataTypeName());
+        return StudyModel.DATA_TYPE_NAME.equals(ctx.getDataTypeName())
+                && ALLOWED_GROUPS.contains(user.getUserGroup().getGroupName());
     }
 
     @Override
     protected PluginResult run(FormToolbarContext ctx) throws Throwable {
-        if (clientCallback == null) {
-            return new PluginResult(false);
-        }
-        if (ctx.getDataRecord() == null) {
-            clientCallback.displayError("This Study could not be retrieved.");
-            return new PluginResult(false);
-        }
         StudyModel study = instMan.addExistingRecordOfType(ctx.getDataRecord(), StudyModel.class);
         SBA_MasterAssayModel assay = selectMasterAssay(study);
         if (assay == null) {
