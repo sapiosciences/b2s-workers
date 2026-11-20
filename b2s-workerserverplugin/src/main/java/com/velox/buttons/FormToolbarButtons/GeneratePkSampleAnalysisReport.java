@@ -1,7 +1,7 @@
 /**
  * Created: 2026-11-20 10:57
  * Agent type: Grok 4.7
- * Modified: 2026-11-20 14:53
+ * Modified: 2026-11-20 15:58
  * Agent type: Grok 4.7
  */
 /*
@@ -25,7 +25,9 @@ import com.velox.api.reportbuilder.entries.RbEntry;
 import com.velox.api.reportbuilder.entries.RbStaticTextEntry;
 import com.velox.api.reportbuilder.shared.RbInterfaceContext;
 import com.velox.api.reportbuilder.shared.RbInterfaceCriteria;
+import com.velox.api.reportbuilder.shared.RbInterfaceResponse;
 import com.velox.api.reportbuilder.shared.RbTemplate;
+import com.velox.recordmodels.C_PKReportModel;
 import com.velox.recordmodels.C_SponsorAddressModel;
 import com.velox.recordmodels.C_SponsorContactModel;
 import com.velox.recordmodels.DirectoryModel;
@@ -35,7 +37,9 @@ import com.velox.recordmodels.SBA_MasterAssayModel;
 import com.velox.recordmodels.StudyModel;
 import com.velox.sapio.commons.exemplar.definition.datatype.DataTypeHelper;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlugin;
+import com.velox.sapio.commons.exemplar.recordmodel.attachment.AttachmentData;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
+import com.velox.sapio.commons.exemplar.recordmodel.relationship.Child;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.RelationshipPath;
@@ -110,11 +114,12 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             clientCallback.displayError("This Master Assay has no Assay Analyte, so the report cannot be filled in.");
             return new PluginResult(false);
         }
-        // A path cannot branch, so the contact is a second bulk load. Both finish before any relationship is read.
+        // A path cannot branch, so each chain is its own bulk load. All of them finish before any relationship is read.
         relationshipMan.loadPath(List.of(study), RelationshipPath.parent(ProjectModel.class)
                 .parent(DirectoryModel.class).child(C_SponsorAddressModel.class));
         relationshipMan.loadPath(List.of(study), RelationshipPath.parent(ProjectModel.class)
                 .child(C_SponsorContactModel.class));
+        relationshipMan.loadPath(List.of(study), RelationshipPath.child(C_PKReportModel.class));
         ProjectModel project = study.get(Parent.ofType(ProjectModel.class));
         if (project == null) {
             clientCallback.displayError("This Study has no parent Project, so the report cannot be filled in.");
@@ -176,12 +181,49 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
                 .isDisableDownloadPdfButton(false)
                 .build();
         RbInterfaceCriteria criteria = RbInterfaceCriteria.builder().rbInterfaceContext(report).build();
+        RbInterfaceResponse response;
         try {
-            clientCallback.showReportBuilder(criteria, user);
+            response = clientCallback.showReportBuilder(criteria, user);
         } catch (UserRequestedCancelServerException cancel) {
             return new PluginResult(false);
         }
+        if (response == null || response.getRbInterfaceContext() == null
+                || response.getRbInterfaceContext().getRbTemplate() == null) {
+            return new PluginResult(false);
+        }
+        byte[] pdf = clientCallback.getReportBuilderPdf(response.getRbInterfaceContext(), user);
+        if (pdf == null || pdf.length == 0) {
+            clientCallback.displayError("The PK report could not be generated as a PDF.");
+            return new PluginResult(false);
+        }
+
+        int version = nextReportVersion(study, assay.getRecordId());
+        C_PKReportModel pkReport = study.add(Child.ofType(C_PKReportModel.class));
+        pkReport.setC_Assay(assay.getRecordId());
+        pkReport.setC_ReportVersion(version);
+        pkReport.setFilePath(StringUtils.defaultIfBlank(study.getDataRecordName(), "Study") + "_PK_Report.pdf");
+        pkReport.set(AttachmentData.bytes(pdf));
+        recMan.storeAndCommit("Generate PK Report");
         return new PluginResult(true);
+    }
+
+    /**
+     * The next version for this Study and Master Assay. Existing reports for other assays do not count.
+     * A blank version still counts as an existing report so the next number moves forward.
+     */
+    private static int nextReportVersion(StudyModel study, Long assayRecordId) {
+        int existing = 0;
+        int highest = 0;
+        for (C_PKReportModel report : study.get(Children.ofType(C_PKReportModel.class))) {
+            if (assayRecordId == null || !assayRecordId.equals(report.getC_Assay())) {
+                continue;
+            }
+            existing++;
+            if (report.getC_ReportVersion() != null && report.getC_ReportVersion() > highest) {
+                highest = report.getC_ReportVersion();
+            }
+        }
+        return Math.max(existing, highest) + 1;
     }
 
     /**
