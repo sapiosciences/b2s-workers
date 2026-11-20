@@ -1,7 +1,7 @@
 /**
  * Created: 2026-11-20 10:57
  * Agent type: Grok 4.7
- * Modified: 2026-11-20 12:47
+ * Modified: 2026-11-20 14:53
  * Agent type: Grok 4.7
  */
 /*
@@ -13,10 +13,14 @@
 package com.velox.buttons.FormToolbarButtons;
 
 import com.velox.RemoteIconUtil;
+import com.velox.api.clientcallback.DataRecordSelectionCriteria;
+import com.velox.api.datatype.DataTypeDefinition;
+import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.invocation.context.FormToolbarContext;
 import com.velox.api.plugin.invocation.context.OnFormToolbarContext;
+import com.velox.api.servermanager.DataTypeManager;
 import com.velox.api.reportbuilder.entries.RbEntry;
 import com.velox.api.reportbuilder.entries.RbStaticTextEntry;
 import com.velox.api.reportbuilder.shared.RbInterfaceContext;
@@ -26,17 +30,22 @@ import com.velox.recordmodels.C_SponsorAddressModel;
 import com.velox.recordmodels.C_SponsorContactModel;
 import com.velox.recordmodels.DirectoryModel;
 import com.velox.recordmodels.ProjectModel;
+import com.velox.recordmodels.SBA_AssayAnalyteModel;
+import com.velox.recordmodels.SBA_MasterAssayModel;
 import com.velox.recordmodels.StudyModel;
+import com.velox.sapio.commons.exemplar.definition.datatype.DataTypeHelper;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlugin;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.RelationshipPath;
+import com.velox.sapio.commons.exemplar.recordmodel.util.RecordModelUtil;
 import org.apache.commons.lang3.StringUtils;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +100,16 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             return new PluginResult(false);
         }
         StudyModel study = instMan.addExistingRecordOfType(ctx.getDataRecord(), StudyModel.class);
+        SBA_MasterAssayModel assay = selectMasterAssay(study);
+        if (assay == null) {
+            return new PluginResult(false);
+        }
+        relationshipMan.loadPath(List.of(assay), RelationshipPath.child(SBA_AssayAnalyteModel.class));
+        SBA_AssayAnalyteModel analyte = firstChild(assay, SBA_AssayAnalyteModel.class);
+        if (analyte == null) {
+            clientCallback.displayError("This Master Assay has no Assay Analyte, so the report cannot be filled in.");
+            return new PluginResult(false);
+        }
         // A path cannot branch, so the contact is a second bulk load. Both finish before any relationship is read.
         relationshipMan.loadPath(List.of(study), RelationshipPath.parent(ProjectModel.class)
                 .parent(DirectoryModel.class).child(C_SponsorAddressModel.class));
@@ -122,7 +141,7 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             clientCallback.displayError("Report template \"" + TEMPLATE_NAME + "\" was not found.");
             return new PluginResult(false);
         }
-        fillTemplate(template, study, project, directory, address, contact);
+        fillTemplate(template, study, project, directory, address, contact, assay, analyte);
 
         for (RbEntry entry : template.getEntryList()) {
             entry.setReadOnly(false);
@@ -165,6 +184,54 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
         return new PluginResult(true);
     }
 
+    /**
+     * Loads the Study's Master Assays in one path. A single assay is used as-is.
+     * Several assays open a single-select record dialog. Cancel or a missing assay returns null.
+     */
+    private SBA_MasterAssayModel selectMasterAssay(StudyModel study) throws Throwable {
+        relationshipMan.loadPath(List.of(study), RelationshipPath.child(SBA_MasterAssayModel.class));
+        List<SBA_MasterAssayModel> assays = new ArrayList<>(study.get(Children.ofType(SBA_MasterAssayModel.class)));
+        if (assays.isEmpty()) {
+            clientCallback.displayError("This Study has no Master Assay, so the report cannot be filled in.");
+            return null;
+        }
+        if (assays.size() == 1) {
+            return assays.get(0);
+        }
+
+        DataTypeDefinition definition = getInstance(DataTypeManager.class)
+                .getDataTypeDefinition(SBA_MasterAssayModel.DATA_TYPE_NAME);
+        if (definition == null) {
+            clientCallback.displayError("The Master Assay data type could not be retrieved.");
+            return null;
+        }
+        TemporaryDataType tempType = definition.getTemporaryDataType(user);
+        String assayLabel = getInstance(DataTypeHelper.class).getDisplayName(SBA_MasterAssayModel.DATA_TYPE_NAME);
+        List<Map<String, Object>> selection = clientCallback.showDataRecordSelectionDialog(
+                "Select the " + assayLabel + " for this report.",
+                DataRecordSelectionCriteria.builder()
+                        .temporaryDataType(tempType)
+                        .multiSelect(false)
+                        .records(RecordModelUtil.getClonedFieldsList(assays))
+                        .build(),
+                user);
+        if (selection == null || selection.isEmpty() || clientCallback.isAborted()) {
+            return null;
+        }
+        Object rawId = selection.get(0).get(SBA_MasterAssayModel.RECORD_ID);
+        if (!(rawId instanceof Number)) {
+            clientCallback.displayError("The selected Master Assay could not be retrieved.");
+            return null;
+        }
+        Map<Long, SBA_MasterAssayModel> assaysById =
+                RecordModelUtil.mapRecordsByFieldValue(assays, SBA_MasterAssayModel.RECORD_ID);
+        SBA_MasterAssayModel selected = assaysById.get(((Number) rawId).longValue());
+        if (selected == null) {
+            clientCallback.displayError("The selected Master Assay could not be retrieved.");
+        }
+        return selected;
+    }
+
     /** The loaded child list is already in memory. The first entry is used when more than one is present. */
     private static <T extends RecordModel> T firstChild(RecordModel parent, Class<T> childType) {
         for (T child : parent.get(Children.ofType(childType))) {
@@ -178,13 +245,16 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
      * A data type or field that is not on one of the loaded records is left unchanged.
      */
     private static void fillTemplate(RbTemplate template, StudyModel study, ProjectModel project,
-            DirectoryModel directory, C_SponsorAddressModel address, C_SponsorContactModel contact) {
+            DirectoryModel directory, C_SponsorAddressModel address, C_SponsorContactModel contact,
+            SBA_MasterAssayModel assay, SBA_AssayAnalyteModel analyte) {
         Map<String, RecordModel> recordsByType = new HashMap<>();
         recordsByType.put(study.getDataTypeName(), study);
         recordsByType.put(project.getDataTypeName(), project);
         recordsByType.put(directory.getDataTypeName(), directory);
         recordsByType.put(address.getDataTypeName(), address);
         recordsByType.put(contact.getDataTypeName(), contact);
+        recordsByType.put(assay.getDataTypeName(), assay);
+        recordsByType.put(analyte.getDataTypeName(), analyte);
         for (RbEntry entry : template.getEntryList()) {
             if (!(entry instanceof RbStaticTextEntry text) || !text.hasStaticHtml()) {
                 continue;
