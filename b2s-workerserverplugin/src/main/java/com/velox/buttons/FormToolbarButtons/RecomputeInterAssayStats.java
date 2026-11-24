@@ -8,8 +8,9 @@
 package com.velox.buttons.FormToolbarButtons;
 
 import com.velox.RemoteIconUtil;
-import com.velox.api.clientcallback.DataRecordSelectionCriteria;
 import com.velox.api.datatype.TemporaryDataType;
+import com.velox.api.datatype.fielddefinition.VeloxFieldDefinition;
+import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
 import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.directive.RefreshCurrentViewDirective;
 import com.velox.api.plugin.invocation.context.FormToolbarContext;
@@ -18,7 +19,9 @@ import com.velox.api.user.UserGroup;
 import com.velox.recordmodels.C_InterAssayLevelResultModel;
 import com.velox.recordmodels.SBA_AssayRunControlResultModel;
 import com.velox.recordmodels.SBA_MasterAssayModel;
+import com.velox.recordmodels.SBA_MasterAssayQCModel;
 import com.velox.recordmodels.SBA_MasterAssayRunModel;
+import com.velox.recordmodels.SBA_MasterAssayStandardModel;
 import com.velox.sapio.commons.exemplar.plugin.veloxplugin.DefaultFormToolbarPlugin;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Child;
@@ -42,16 +45,6 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
 
     private static final String ASSAY_RUN_TYPE_ANALYSIS = "Analysis";
     private static final String RUN_RESULT_REJECT = "Reject";
-
-    // Control results hang under one of these (the "level" parent used for grouping)
-    private static final String MASTER_ASSAY_QC = "SBA_MasterAssayQC";
-    private static final String MASTER_ASSAY_STANDARD = "SBA_MasterAssayStandard";
-
-    // Name + limit fields on those parents
-    private static final String QC_NAME_FIELD = "SBA_QCName";
-    private static final String STANDARD_NAME_FIELD = "SBA_StandardName";
-    private static final String CV_PERCENT_LIMIT_FIELD = "SBA_CVPercentLimit";
-    private static final String FLAG_PCT_DIFF_FIELD = "SBA_FlagPctDiff";
 
     private static final String CONTROL_TYPE_QC = "QC";
     private static final String CONTROL_TYPE_STANDARD = "Standard";
@@ -81,18 +74,25 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
         Double nominal;     // blank when no result in the group has a theoretical value
         boolean withinLimits;
 
-        ControlResultGroup(String analyteName, RecordModel parent, Double assayMaxMeanBiasInter) {
+        ControlResultGroup(String analyteName, SBA_MasterAssayQCModel qc, Double assayMaxMeanBiasInter) {
+            this(analyteName, qc, CONTROL_TYPE_QC, qc.getSBA_QcName(), qc.getSBA_CVPercentLimit(),
+                    qc.getSBA_FlagPctDiff(), assayMaxMeanBiasInter);
+        }
+
+        ControlResultGroup(String analyteName, SBA_MasterAssayStandardModel standard, Double assayMaxMeanBiasInter) {
+            this(analyteName, standard, CONTROL_TYPE_STANDARD, standard.getSBA_StandardName(),
+                    standard.getSBA_CVPercentLimit(), standard.getSBA_FlagPctDiff(), assayMaxMeanBiasInter);
+        }
+
+        private ControlResultGroup(String analyteName, RecordModel parent, String controlType, String levelName,
+                Double cvPercentLimit, Double levelMaxBias, Double assayMaxMeanBiasInter) {
             this.analyteName = analyteName;
             this.parent = parent;
-
-            // Pull display name + acceptance limits off the parent once at group creation
-            boolean isQc = MASTER_ASSAY_QC.equals(parent.getDataTypeName());
-            this.controlType = isQc ? CONTROL_TYPE_QC : CONTROL_TYPE_STANDARD;
-            this.levelName = (String) parent.getField(isQc ? QC_NAME_FIELD : STANDARD_NAME_FIELD);
-            this.cvPercentLimit = ((Number) parent.getField(CV_PERCENT_LIMIT_FIELD)).doubleValue();
+            this.controlType = controlType;
+            this.levelName = levelName;
+            this.cvPercentLimit = cvPercentLimit;
             // Max Bias % is optional on the level — fall back to the assay-wide inter-assay limit
-            Number levelMaxBias = (Number) parent.getField(FLAG_PCT_DIFF_FIELD);
-            this.maxBiasPercent = levelMaxBias != null ? Double.valueOf(levelMaxBias.doubleValue()) : assayMaxMeanBiasInter;
+            this.maxBiasPercent = levelMaxBias != null ? levelMaxBias : assayMaxMeanBiasInter;
         }
     }
 
@@ -195,25 +195,26 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
         }
 
         // Each control hangs under either a QC or a Standard — load both parent types once
-        relationshipMan.loadParents(activeControls, MASTER_ASSAY_QC);
-        relationshipMan.loadParents(activeControls, MASTER_ASSAY_STANDARD);
+        relationshipMan.loadParents(activeControls, SBA_MasterAssayQCModel.class);
+        relationshipMan.loadParents(activeControls, SBA_MasterAssayStandardModel.class);
 
         Map<String, ControlResultGroup> groupsByKey = new LinkedHashMap<>();
         for (SBA_AssayRunControlResultModel control : activeControls) {
-            RecordModel parent = control.get(Parent.ofType(MASTER_ASSAY_QC));
-            if (parent == null) {
-                parent = control.get(Parent.ofType(MASTER_ASSAY_STANDARD));
-            }
+            SBA_MasterAssayQCModel qc = control.get(Parent.ofType(SBA_MasterAssayQCModel.class));
+            SBA_MasterAssayStandardModel standard = qc == null
+                    ? control.get(Parent.ofType(SBA_MasterAssayStandardModel.class))
+                    : null;
             // No QC/Standard parent means no level to group under — skip it
-            if (parent == null) {
+            if (qc == null && standard == null) {
                 continue;
             }
 
             String analyteName = control.getSBA_AnalyteName();
-            String key = parent.getRecordId() + "|" + analyteName;
-            RecordModel finalParent = parent;
+            String key = (qc != null ? qc.getRecordId() : standard.getRecordId()) + "|" + analyteName;
             groupsByKey
-                    .computeIfAbsent(key, ignored -> new ControlResultGroup(analyteName, finalParent, assayMaxMeanBiasInter))
+                    .computeIfAbsent(key, ignored -> qc != null
+                            ? new ControlResultGroup(analyteName, qc, assayMaxMeanBiasInter)
+                            : new ControlResultGroup(analyteName, standard, assayMaxMeanBiasInter))
                     .controlResults.add(control);
         }
 
@@ -277,9 +278,11 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
      */
     private static List<C_InterAssayLevelResultModel> replaceInterAssayLevelResults(
             SBA_MasterAssayModel masterAssay, List<ControlResultGroup> groups) {
-        // Clear whatever was there before
-        for (C_InterAssayLevelResultModel existing
-                : masterAssay.get(Children.ofType(C_InterAssayLevelResultModel.class))) {
+        // Clear whatever was there before. Copy the list first: delete() removes the record from the
+        // live child list, which would break the loop with a ConcurrentModificationException.
+        List<C_InterAssayLevelResultModel> existingResults =
+                new ArrayList<>(masterAssay.get(Children.ofType(C_InterAssayLevelResultModel.class)));
+        for (C_InterAssayLevelResultModel existing : existingResults) {
             existing.delete();
         }
 
@@ -323,16 +326,22 @@ public class RecomputeInterAssayStats extends DefaultFormToolbarPlugin {
         TemporaryDataType tempType = dtMan
                 .getDataTypeDefinition(C_InterAssayLevelResultModel.DATA_TYPE_NAME)
                 .getTemporaryDataType(user);
+        // Review only: every column is read-only, so nothing can be edited or selected
+        for (VeloxFieldDefinition<?> field : tempType.getVeloxFieldDefinitionList()) {
+            field.setEditable(false);
+        }
 
-        clientCallback.showDataRecordSelectionDialog(
-                "Inter-Assay Level Results — " + outsideLimits + " of " + results.size()
-                        + " outside limits",
-                DataRecordSelectionCriteria.builder()
-                        .temporaryDataType(tempType)
-                        .records(RecordModelUtil.getClonedFieldsList(results))
-                        .multiSelect(false)
-                        .build(),
-                user);
+        // The results are already saved, so OK and Cancel both just close the table
+        try {
+            clientCallback.showTableEntryDialog(
+                    "Inter-Assay Level Results — " + outsideLimits + " of " + results.size()
+                            + " outside limits",
+                    "These results have been saved to the Master Assay.",
+                    tempType,
+                    RecordModelUtil.getClonedFieldsList(results));
+        } catch (UserRequestedCancelServerException closed) {
+            // Nothing to undo
+        }
     }
 
     /** True when this run is an Analysis run and its overall result is not Reject. */

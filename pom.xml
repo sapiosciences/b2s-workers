@@ -56,6 +56,12 @@
         <artifactId>commons-io</artifactId>
         <version>2.19.0</version>
       </dependency>
+      <!-- PDFBox: same version the applib already ships (b2s-workerdeployer/target/applib/pdfbox.jar). -->
+      <dependency>
+        <groupId>org.apache.pdfbox</groupId>
+        <artifactId>pdfbox</artifactId>
+        <version>3.0.5</version>
+      </dependency>
 
       <dependency>
         <groupId>com.velox.internalproducts</groupId>

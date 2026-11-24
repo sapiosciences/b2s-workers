@@ -43,6 +43,11 @@
             <version>${sapiofoundations.version}</version>
             <type>plugin</type>
         </dependency>
+        <!-- PDFBox merges the uploaded appendix PDFs onto the PK report (GeneratePkSampleAnalysisReport). -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+        </dependency>
         <!-- Add your dependencies here. Examples from accessionservicesharedlib:
 			If a dependency you have is an "applib", you must specify "type" as applib.
 			If a dependency you have is a "plugin", you must specify "type" as "plugin".

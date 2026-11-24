@@ -9,7 +9,7 @@ package com.velox.recordmodels;
 import com.velox.sapio.commons.exemplar.recordmodel.annotation.ExemplarDataTypeModel;
 import com.velox.sapio.commons.exemplar.recordmodel.record.AbstractRecordModelWrapper;
 import com.velox.sapio.commons.exemplar.recordmodel.record.RecordModel;
-import com.velox.util.time.DateRange;
+
 /**
  * Automatically generated class for: Study
  */
@@ -31,6 +31,15 @@ public class StudyModel extends AbstractRecordModelWrapper {
 	public static final String BODY_WEIGHT_WARNING_PERCENTAGE = "BodyWeightWarningPercentage";
 
 	/**
+	 * <b>Data Field Name</b>: C_BlindingStatus<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Blinding Status<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___BLINDING_STATUS = "C_BlindingStatus";
+
+	/**
 	 * <b>Data Field Name</b>: C_SponsorStudyNumber<br/>
 	 * <br/>
 	 * <b>Display Name</b>: Sponsor Study Number<br/>
@@ -38,6 +47,15 @@ public class StudyModel extends AbstractRecordModelWrapper {
 	 * <b>Description</b>: No Description
 	 */
 	public static final String C___SPONSOR_STUDY_NUMBER = "C_SponsorStudyNumber";
+
+	/**
+	 * <b>Data Field Name</b>: C_TestFacility<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Test Facility<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 */
+	public static final String C___TEST_FACILITY = "C_TestFacility";
 
 	/**
 	 * <b>Data Field Name</b>: CreatedBy<br/>
@@ -285,6 +303,36 @@ If this option is currently enabled and is set to disabled the current Role Cand
 	}
 	
 	/**
+	 * Retrieves the value stored on the {@link #C___BLINDING_STATUS} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_BlindingStatus<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Blinding Status<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_BlindingStatus" field
+	 */
+	public String getC_BlindingStatus() {
+		return getField(C___BLINDING_STATUS);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___BLINDING_STATUS} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_BlindingStatus<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Blinding Status<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_BlindingStatus" field
+	 */
+	public void setC_BlindingStatus(String value) {
+		setField(C___BLINDING_STATUS, value);
+	}
+	
+	/**
 	 * Retrieves the value stored on the {@link #C___SPONSOR_STUDY_NUMBER} field via {@link #getField(String)}<br/>
 	 * <br/>
 	 * <b>Data Field Name</b>: C_SponsorStudyNumber<br/>
@@ -312,6 +360,36 @@ If this option is currently enabled and is set to disabled the current Role Cand
 	 */
 	public void setC_SponsorStudyNumber(String value) {
 		setField(C___SPONSOR_STUDY_NUMBER, value);
+	}
+	
+	/**
+	 * Retrieves the value stored on the {@link #C___TEST_FACILITY} field via {@link #getField(String)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_TestFacility<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Test Facility<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @return the value stored on the "C_TestFacility" field
+	 */
+	public String getC_TestFacility() {
+		return getField(C___TEST_FACILITY);
+	}
+	
+	/**
+	 * Sets the value stored on the {@link #C___TEST_FACILITY} field via {@link #setField(String, Object)}<br/>
+	 * <br/>
+	 * <b>Data Field Name</b>: C_TestFacility<br/>
+	 * <br/>
+	 * <b>Display Name</b>: Test Facility<br/>
+	 * <br/>
+	 * <b>Description</b>: No Description
+	 * 
+	 * @param value The value to set on the "C_TestFacility" field
+	 */
+	public void setC_TestFacility(String value) {
+		setField(C___TEST_FACILITY, value);
 	}
 	
 	/**
