@@ -14,6 +14,7 @@ package com.velox.buttons.FormToolbarButtons;
 
 import com.velox.RemoteIconUtil;
 import com.velox.api.clientcallback.DataRecordSelectionCriteria;
+import com.velox.api.clientcallback.ReadFileDialogCriteria;
 import com.velox.api.datatype.DataTypeDefinition;
 import com.velox.api.datatype.TemporaryDataType;
 import com.velox.api.exception.recoverability.serverexception.UserRequestedCancelServerException;
@@ -21,12 +22,14 @@ import com.velox.api.plugin.PluginResult;
 import com.velox.api.plugin.invocation.context.FormToolbarContext;
 import com.velox.api.plugin.invocation.context.OnFormToolbarContext;
 import com.velox.api.servermanager.DataTypeManager;
+import com.velox.api.servermanager.PickListManager;
 import com.velox.api.reportbuilder.entries.RbEntry;
 import com.velox.api.reportbuilder.entries.RbStaticTextEntry;
 import com.velox.api.reportbuilder.shared.RbInterfaceContext;
 import com.velox.api.reportbuilder.shared.RbInterfaceCriteria;
 import com.velox.api.reportbuilder.shared.RbInterfaceResponse;
 import com.velox.api.reportbuilder.shared.RbTemplate;
+import com.velox.api.util.ShowListDialogCriteria;
 import com.velox.recordmodels.C_PKReportModel;
 import com.velox.recordmodels.C_SponsorAddressModel;
 import com.velox.recordmodels.C_SponsorContactModel;
@@ -44,8 +47,15 @@ import com.velox.sapio.commons.exemplar.recordmodel.relationship.Children;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.Parent;
 import com.velox.sapio.commons.exemplar.recordmodel.relationship.RelationshipPath;
 import com.velox.sapio.commons.exemplar.recordmodel.util.RecordModelUtil;
+import com.velox.sapio.commons.utils.StreamingUtil;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.pdfbox.io.IOUtils;
+import org.apache.pdfbox.io.RandomAccessReadBuffer;
+import org.apache.pdfbox.multipdf.PDFMergerUtility;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -62,7 +72,19 @@ import java.util.regex.Pattern;
  */
 public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
 
-    private static final String TEMPLATE_NAME = "B2S_PK_SampleAnalysisReport_Mockup";
+    private static final String TEMPLATE_NAME = "B2S_PK_SampleAnalysisReport";
+
+    /** Pick list holding the management signatories the user chooses from before the report is filled. */
+    private static final String MANAGEMENT_SIGNATORY_PICKLIST = "Management Signatory";
+
+    /** Appendices the user uploads before the report is filled, in report order (B2S1-136). */
+    private static final List<String> APPENDIX_LABELS = List.of(
+            "Appendix 1: Test Method",
+            "Appendix 2: Sample Analysis Plan",
+            "Appendix 3: Validation Report");
+
+    /** [[RPT][NAME]] placeholder that prints the chosen management signatory. */
+    private static final String RPT_MANAGEMENT_NAME = "MANAGEMENT_NAME";
 
     private static final Set<String> ALLOWED_GROUPS = Set.of(
             "Principal Investigator",
@@ -109,6 +131,11 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
         if (assay == null) {
             return new PluginResult(false);
         }
+        String managementSignatory = selectManagementSignatory();
+        if (managementSignatory == null) {
+            return new PluginResult(false);
+        }
+        List<Appendix> appendices = uploadAppendices();
         relationshipMan.loadPath(List.of(assay), RelationshipPath.child(SBA_AssayAnalyteModel.class));
         SBA_AssayAnalyteModel analyte = firstChild(assay, SBA_AssayAnalyteModel.class);
         if (analyte == null) {
@@ -147,7 +174,9 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             clientCallback.displayError("Report template \"" + TEMPLATE_NAME + "\" was not found.");
             return new PluginResult(false);
         }
-        fillTemplate(template, study, project, directory, address, contact, assay, analyte);
+        Map<String, String> rptValues = new HashMap<>();
+        rptValues.put(RPT_MANAGEMENT_NAME, managementSignatory);
+        fillTemplate(template, study, project, directory, address, contact, assay, analyte, rptValues);
 
         for (RbEntry entry : template.getEntryList()) {
             entry.setReadOnly(false);
@@ -197,13 +226,21 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             clientCallback.displayError("The PK report could not be generated as a PDF.");
             return new PluginResult(false);
         }
+        byte[] reportWithAppendices;
+        try {
+            reportWithAppendices = appendPdfs(pdf, appendices);
+        } catch (IOException e) {
+            clientCallback.displayError("The appendices could not be added to the PK report: " + e.getMessage());
+            return new PluginResult(false);
+        }
 
         int version = nextReportVersion(study, assay.getRecordId());
         C_PKReportModel pkReport = study.add(Child.ofType(C_PKReportModel.class));
         pkReport.setC_Assay(assay.getRecordId());
         pkReport.setC_ReportVersion(version);
+        pkReport.setC_ManagementSignatory(managementSignatory);
         pkReport.setFilePath(StringUtils.defaultIfBlank(study.getDataRecordName(), "Study") + "_PK_Report.pdf");
-        pkReport.set(AttachmentData.bytes(pdf));
+        pkReport.set(AttachmentData.bytes(reportWithAppendices));
         recMan.storeAndCommit("Generate PK Report");
         return new PluginResult(true);
     }
@@ -225,6 +262,104 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             }
         }
         return Math.max(existing, highest) + 1;
+    }
+
+    /**
+     * Shows the entries of the Management Signatory pick list and returns the one the user picks.
+     * A missing or empty pick list, or a cancelled dialog, returns null.
+     */
+    private String selectManagementSignatory() throws Throwable {
+        PickListManager pickListManager = dataMgmtServer.getPickListManager(user);
+        var config = pickListManager.getPickListConfig(MANAGEMENT_SIGNATORY_PICKLIST);
+        List<String> signatories = config == null ? null : config.getEntryList();
+        if (signatories == null || signatories.isEmpty()) {
+            clientCallback.displayError("The \"" + MANAGEMENT_SIGNATORY_PICKLIST
+                    + "\" pick list is missing or empty, so the report cannot be filled in.");
+            return null;
+        }
+        List<String> selection;
+        try {
+
+            ShowListDialogCriteria<String> criteria = ShowListDialogCriteria.<String>builder()
+                    .itemList(signatories)
+                    .multiSelect(false)
+                    .build();
+            selection = clientCallback.showListDialog("Select the Management Signatory for this report.",criteria, user);
+
+        } catch (UserRequestedCancelServerException cancel) {
+            return null;
+        }
+        if (selection == null || selection.isEmpty() || StringUtils.isBlank(selection.get(0))) {
+            return null;
+        }
+        return selection.get(0);
+    }
+
+    /** One uploaded appendix file. */
+    private record Appendix(String label, String fileName, byte[] bytes) {
+    }
+
+    /**
+     * Asks the user to upload each appendix in APPENDIX_LABELS order.
+     * Every upload is optional: cancelling the dialog skips that appendix and moves on to the next.
+     * A file that cannot be read or is not a PDF is reported to the user and skipped.
+     */
+    private List<Appendix> uploadAppendices() throws Throwable {
+        List<Appendix> appendices = new ArrayList<>(APPENDIX_LABELS.size());
+        for (String label : APPENDIX_LABELS) {
+            String filePath;
+            try {
+                filePath = clientCallback.showFileDialog(ReadFileDialogCriteria.builder()
+                        .title("Upload " + label + " (PDF, optional)")
+                        .extension("pdf")
+                        .showCameraButton(false)
+                        .showImageEditor(false)
+                        .build());
+            } catch (UserRequestedCancelServerException skipped) {
+                continue;
+            }
+            if (StringUtils.isBlank(filePath) || clientCallback.isAborted()) {
+                continue;
+            }
+            byte[] fileBytes = StreamingUtil.readBytesFromUser(filePath, exemplarContext);
+            if (fileBytes == null || fileBytes.length == 0) {
+                clientCallback.displayError("Could not read the file uploaded for " + label + ". It will be left out.");
+                continue;
+            }
+            String fileName = new File(filePath).getName();
+            if (!isPdf(fileName, fileBytes)) {
+                clientCallback.displayError(label + " must be a PDF file. \"" + fileName + "\" is not a PDF, so it will be left out.");
+                continue;
+            }
+            appendices.add(new Appendix(label, fileName, fileBytes));
+        }
+        return appendices;
+    }
+
+    /**
+     * Returns one PDF: the filled report's pages, then each appendix's pages in list order.
+     * With no appendices the report PDF is returned unchanged.
+     * The report and the appendices are copied as they are; nothing inside them is changed.
+     */
+    private static byte[] appendPdfs(byte[] reportPdf, List<Appendix> appendices) throws IOException {
+        if (appendices.isEmpty()) {
+            return reportPdf;
+        }
+        PDFMergerUtility merger = new PDFMergerUtility();
+        merger.addSource(new RandomAccessReadBuffer(reportPdf));
+        for (Appendix appendix : appendices) {
+            merger.addSource(new RandomAccessReadBuffer(appendix.bytes()));
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        merger.setDestinationStream(out);
+        merger.mergeDocuments(IOUtils.createMemoryOnlyStreamCache());
+        return out.toByteArray();
+    }
+
+    /** A PDF has a .pdf name and starts with the "%PDF" header. */
+    private static boolean isPdf(String fileName, byte[] bytes) {
+        return StringUtils.endsWithIgnoreCase(fileName, ".pdf")
+                && bytes.length >= 4 && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D' && bytes[3] == 'F';
     }
 
     /**
@@ -284,12 +419,13 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
     }
 
     /**
-     * Replaces [[DataType][Field]] in every static-text entry, including the header and footer.
+     * Replaces [[DataType][Field]] and the [[RPT][NAME]] values in rptValues in every static-text entry,
+     * including the header and footer.
      * A data type or field that is not on one of the loaded records is left unchanged.
      */
     private static void fillTemplate(RbTemplate template, StudyModel study, ProjectModel project,
             DirectoryModel directory, C_SponsorAddressModel address, C_SponsorContactModel contact,
-            SBA_MasterAssayModel assay, SBA_AssayAnalyteModel analyte) {
+            SBA_MasterAssayModel assay, SBA_AssayAnalyteModel analyte, Map<String, String> rptValues) {
         Map<String, RecordModel> recordsByType = new HashMap<>();
         recordsByType.put(study.getDataTypeName(), study);
         recordsByType.put(project.getDataTypeName(), project);
@@ -302,15 +438,18 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             if (!(entry instanceof RbStaticTextEntry text) || !text.hasStaticHtml()) {
                 continue;
             }
-            text.setStaticHtml(applyMacros(text.getStaticHtml(), recordsByType));
+            text.setStaticHtml(applyMacros(text.getStaticHtml(), recordsByType, rptValues));
         }
     }
 
-    private static String applyMacros(String html, Map<String, RecordModel> recordsByType) {
+    private static String applyMacros(String html, Map<String, RecordModel> recordsByType,
+            Map<String, String> rptValues) {
         Matcher matcher = FIELD_MACRO.matcher(html);
         StringBuilder out = new StringBuilder();
         while (matcher.find()) {
-            String value = valueFor(recordsByType, matcher.group(1), matcher.group(2));
+            String value = "RPT".equals(matcher.group(1))
+                    ? rptValues.get(matcher.group(2))
+                    : valueFor(recordsByType, matcher.group(1), matcher.group(2));
             matcher.appendReplacement(out, Matcher.quoteReplacement(value == null ? matcher.group(0) : escapeHtml(value)));
         }
         matcher.appendTail(out);
