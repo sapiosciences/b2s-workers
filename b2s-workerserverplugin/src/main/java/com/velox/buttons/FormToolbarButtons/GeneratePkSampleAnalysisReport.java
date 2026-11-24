@@ -83,8 +83,20 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             "Appendix 2: Sample Analysis Plan",
             "Appendix 3: Validation Report");
 
-    /** [[RPT][NAME]] placeholder that prints the chosen management signatory. */
+    /** Pick list of the Study Type values that count as GLP (B2S1-258). */
+    private static final String GLP_STUDY_TYPES_PICKLIST = "Report \u2013 GLP Study Types";
+
+    /** C_BlindingStatus value that prints the unblinded wording (B2S1-258). */
+    private static final String UNBLINDED = "Unblinded";
+
+    /** [[RPT][NAME]] placeholders filled by this plugin. */
     private static final String RPT_MANAGEMENT_NAME = "MANAGEMENT_NAME";
+    private static final String RPT_MANAGEMENT_TITLE = "MANAGEMENT_TITLE";
+    private static final String RPT_UNBLINDED_LINE = "UNBLINDED_LINE";
+    private static final String RPT_UNBLINDED_FOOTER = "UNBLINDED_FOOTER";
+    private static final String RPT_GLP_TEST_FACILITY_BLOCK = "GLP_TEST_FACILITY_BLOCK";
+    private static final String RPT_SITE_LABEL = "SITE_LABEL";
+    private static final String RPT_GLP_FROM_TEST_FACILITY = "GLP_FROM_TEST_FACILITY";
 
     private static final Set<String> ALLOWED_GROUPS = Set.of(
             "Principal Investigator",
@@ -174,8 +186,23 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             clientCallback.displayError("Report template \"" + TEMPLATE_NAME + "\" was not found.");
             return new PluginResult(false);
         }
+        Boolean glp = isGlpStudy(study);
+        if (glp == null) {
+            return new PluginResult(false);
+        }
+        // [[RPT][NAME]] values are inserted as HTML, so plain text is escaped here.
         Map<String, String> rptValues = new HashMap<>();
-        rptValues.put(RPT_MANAGEMENT_NAME, managementSignatory);
+        rptValues.put(RPT_MANAGEMENT_NAME, escapeHtml(managementSignatory));
+        boolean unblinded = UNBLINDED.equals(study.getC_BlindingStatus());
+        rptValues.put(RPT_UNBLINDED_LINE, unblinded ? "DATA IS UNBLINDED" : "");
+        rptValues.put(RPT_UNBLINDED_FOOTER, unblinded ? "CONFIDENTIAL - UNBLINDED" : "CONFIDENTIAL");
+        rptValues.put(RPT_SITE_LABEL, glp ? "Test Site" : "Bioanalytical Site");
+        rptValues.put(RPT_MANAGEMENT_TITLE, glp ? "Test Site Management" : "B2S Management");
+        rptValues.put(RPT_GLP_TEST_FACILITY_BLOCK, glp ? testFacilityBlock(study.getC_TestFacility()) : "");
+        // B2S1-259: " from [Test Facility]" for GLP studies. C_TestFacility is pasted as entered; blank means no text.
+        String testFacility = study.getC_TestFacility();
+        rptValues.put(RPT_GLP_FROM_TEST_FACILITY,
+                glp && StringUtils.isNotBlank(testFacility) ? " from " + escapeHtml(testFacility.trim()) : "");
         fillTemplate(template, study, project, directory, address, contact, assay, analyte, rptValues);
 
         for (RbEntry entry : template.getEntryList()) {
@@ -293,6 +320,29 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
             return null;
         }
         return selection.get(0);
+    }
+
+    /**
+     * True when the Study's Study Type is on the Report \u2013 GLP Study Types pick list.
+     * A missing or empty pick list shows an error and returns null.
+     */
+    private Boolean isGlpStudy(StudyModel study) throws Throwable {
+        PickListManager pickListManager = dataMgmtServer.getPickListManager(user);
+        var config = pickListManager.getPickListConfig(GLP_STUDY_TYPES_PICKLIST);
+        List<String> glpStudyTypes = config == null ? null : config.getEntryList();
+        if (glpStudyTypes == null || glpStudyTypes.isEmpty()) {
+            clientCallback.displayError("The \"" + GLP_STUDY_TYPES_PICKLIST
+                    + "\" pick list is missing or empty, so the report cannot be filled in.");
+            return null;
+        }
+        String studyType = study.getStudyType();
+        return studyType != null && glpStudyTypes.contains(studyType);
+    }
+
+    /** The title page Test Facility block for GLP studies, as written in the spec. Line breaks in the field are kept. */
+    private static String testFacilityBlock(String testFacility) {
+        String lines = escapeHtml(StringUtils.defaultString(testFacility)).replace("\r\n", "\n").replace("\n", "<br>");
+        return "<div style=\"margin:0 0 14pt 0;\"><b>Test Facility</b>:<br>" + lines + "</div>";
     }
 
     /** One uploaded appendix file. */
@@ -419,7 +469,7 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
     }
 
     /**
-     * Replaces [[DataType][Field]] and the [[RPT][NAME]] values in rptValues in every static-text entry,
+     * Replaces [[DataType][Field]] (escaped) and the [[RPT][NAME]] values in rptValues (already HTML) in every static-text entry,
      * including the header and footer.
      * A data type or field that is not on one of the loaded records is left unchanged.
      */
@@ -449,8 +499,8 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
         while (matcher.find()) {
             String value = "RPT".equals(matcher.group(1))
                     ? rptValues.get(matcher.group(2))
-                    : valueFor(recordsByType, matcher.group(1), matcher.group(2));
-            matcher.appendReplacement(out, Matcher.quoteReplacement(value == null ? matcher.group(0) : escapeHtml(value)));
+                    : escapeOrNull(valueFor(recordsByType, matcher.group(1), matcher.group(2)));
+            matcher.appendReplacement(out, Matcher.quoteReplacement(value == null ? matcher.group(0) : value));
         }
         matcher.appendTail(out);
         return out.toString();
@@ -495,6 +545,10 @@ public class GeneratePkSampleAnalysisReport extends DefaultFormToolbarPlugin {
 
     private static boolean isDateField(String fieldName) {
         return fieldName != null && fieldName.contains("Date");
+    }
+
+    private static String escapeOrNull(String value) {
+        return value == null ? null : escapeHtml(value);
     }
 
     private static String escapeHtml(String value) {
